@@ -1,0 +1,48 @@
+rules:
+  - id: sift.file-upload-no-validation
+    message: |
+      [File Upload Security] 檔案上傳未驗證檔案類型、大小或內容。
+      攻擊者可上傳 Web Shell 或惡意執行檔。
+      請驗證 MIME type、副檔名白名單、檔案大小上限。
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - go
+      - java
+      - php
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $FILE.save($PATH)
+          - pattern: |
+              fs.writeFile($PATH, $FILE.buffer)
+          - pattern: |
+              move_uploaded_file($TMP, $DEST)
+          - pattern: |
+              shutil.copy($SRC, $DST)
+    metadata:
+      category: security
+      cwe: "CWE-434"
+      owasp: "A03:2021 - Injection"
+
+  - id: sift.file-upload-user-path
+    message: |
+      [File Upload Security] 上傳檔案的路徑由使用者輸入控制。
+      攻擊者可利用 Path Traversal 覆寫系統檔案。
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - php
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $FILE.save($UPLOAD_DIR + $REQ.body.$FIELD)
+          - pattern: |
+              $FILE.save($REQ.body.$FIELD)
+    metadata:
+      category: security
+      cwe: "CWE-22"

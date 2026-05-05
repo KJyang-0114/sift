@@ -54,39 +54,54 @@ func NewOrchestrator(cfg *config.Config) *Orchestrator {
 func (o *Orchestrator) Run(target string, format string) error {
 	target = absTarget(target)
 
-	fmt.Printf("  🔍 Sift 掃描中: %s\n\n", target)
+	// JSON/SARIF 輸出時不印進度訊息，以免汙染 stdout
+	verbose := format != "json" && format != "sarif"
+
+	if verbose {
+		fmt.Printf("  🔍 Sift 掃描中: %s\n\n", target)
+	}
 
 	start := time.Now()
 	var allFindings []static.Finding
 
 	// Phase 1: 靜態分析（Semgrep + 套件驗證 + LLM 語意分析）
-	fmt.Println("  ── Phase 1: 靜態分析 ──")
+	if verbose {
+		fmt.Println("  ── Phase 1: 靜態分析 ──")
+	}
 	results := o.runAnalyzers(o.staticAnalyzers, target)
 	for _, r := range results {
 		if r.Error != nil {
 			fmt.Fprintf(os.Stderr, "  ⚠️  %s: %v\n", r.Analyzer, r.Error)
 			continue
 		}
-		fmt.Printf("  ✅ %s: %d 個問題\n", r.Analyzer, len(r.Findings))
+		if verbose {
+			fmt.Printf("  ✅ %s: %d 個問題\n", r.Analyzer, len(r.Findings))
+		}
 		allFindings = append(allFindings, r.Findings...)
 	}
 
 	// Phase 2: 動態測試（沙盒執行，僅在有 LLM 時啟用）
 	if len(o.dynamicAnalyzers) > 0 {
-		fmt.Println()
-		fmt.Println("  ── Phase 2: 動態測試 ──")
+		if verbose {
+			fmt.Println()
+			fmt.Println("  ── Phase 2: 動態測試 ──")
+		}
 		dynResults := o.runAnalyzers(o.dynamicAnalyzers, target)
 		for _, r := range dynResults {
 			if r.Error != nil {
 				fmt.Fprintf(os.Stderr, "  ⚠️  %s: %v\n", r.Analyzer, r.Error)
 				continue
 			}
-			fmt.Printf("  ✅ %s: %d 個問題\n", r.Analyzer, len(r.Findings))
+			if verbose {
+				fmt.Printf("  ✅ %s: %d 個問題\n", r.Analyzer, len(r.Findings))
+			}
 			allFindings = append(allFindings, r.Findings...)
 		}
 	}
 
-	fmt.Println()
+	if verbose {
+		fmt.Println()
+	}
 
 	// 輸出報告
 	o.lastFindings = allFindings

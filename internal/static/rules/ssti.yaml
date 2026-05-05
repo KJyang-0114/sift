@@ -1,0 +1,45 @@
+rules:
+  - id: sift.ssti-server-template-injection
+    message: |
+      [SSTI] 使用者輸入傳入模板引擎，可能導致 Server-Side Template Injection。
+      攻擊者可執行任意程式碼。請使用沙盒模式或將輸入視為資料而非模板。
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - go
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $TEMPLATE.render($INPUT)
+          - pattern: |
+              $ENV.from_string($INPUT)
+          - pattern: |
+              $JINJA2.from_string($INPUT)
+          - pattern: |
+              nunjucks.renderString($INPUT)
+          - pattern: |
+              ejs.render($INPUT)
+          - pattern: |
+              $TEMPLATE.Execute($WRITER, $INPUT)
+    metadata:
+      category: security
+      cwe: "CWE-1336"
+
+  - id: sift.ssti-format-string
+    message: |
+      [Format String Attack] 使用 .format() 或 % 格式化包含使用者輸入的字串。
+      在特定 Python 版本中可能導致資訊洩漏。
+    severity: WARNING
+    languages:
+      - python
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $STRING.format($INPUT)
+          - pattern: |
+              $STRING % $INPUT
+    metadata:
+      category: security
+      cwe: "CWE-134"

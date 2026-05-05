@@ -1,0 +1,30 @@
+rules:
+  - id: sift.nosql-injection-mongo
+    message: |
+      [NoSQL Injection] 使用者輸入直接傳入 MongoDB 查詢，可能繞過驗證或竊取資料。
+      請使用 $eq 明確指定比對方式，或使用 mongoose 的 Schema 驗證。
+    severity: ERROR
+    languages:
+      - javascript
+      - typescript
+      - python
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $COLLECTION.find({$KEY: $REQ.body.$FIELD})
+          - pattern: |
+              $COLLECTION.findOne({$KEY: $REQ.query.$FIELD})
+          - pattern: |
+              $COLLECTION.findOne({$KEY: $REQ.params.$FIELD})
+          - pattern: |
+              $DB.collection($NAME).find({$KEY: $INPUT})
+          - pattern: |
+              $COLLECTION.find({$KEY: {$NE: $VALUE}})
+          - pattern: |
+              $COLLECTION.update({$KEY: $INPUT}, $UPDATE)
+          - pattern: |
+              $COLLECTION.deleteMany({$KEY: $INPUT})
+    metadata:
+      category: security
+      cwe: "CWE-943"
+      owasp: "A03:2021 - Injection"

@@ -1,0 +1,37 @@
+rules:
+  - id: sift.prototype-pollution-merge
+    message: |
+      [Prototype Pollution] 深度合併使用者輸入的物件可能汙染 Object.prototype。
+      攻擊者可注入 __proto__ 或 constructor 屬性來竄改全域物件行為。
+      請使用安全的合併函數（如 lodash.merge 的 safe 模式、或 Object.assign 淺拷貝）。
+    severity: ERROR
+    languages:
+      - javascript
+      - typescript
+    patterns:
+      - pattern-either:
+          - pattern: |
+              Object.assign($TARGET, $REQ.body)
+          - pattern: |
+              $OBJ = {...$REQ.body, ...$DEFAULTS}
+          - pattern: |
+              _.merge($TARGET, $REQ.body)
+          - pattern: |
+              Object.assign($TARGET, $INPUT)
+    metadata:
+      category: security
+      cwe: "CWE-1321"
+
+  - id: sift.prototype-pollution-json-parse
+    message: |
+      [Prototype Pollution] JSON.parse 雖不會觸發 Prototype Pollution，但若結果用於遞迴合併仍有風險。
+      請對所有來自外部的 JSON 輸入進行 key 過濾（過濾 __proto__, constructor, prototype）。
+    severity: WARNING
+    languages:
+      - javascript
+      - typescript
+    patterns:
+      - pattern: |
+          $DATA = JSON.parse($REQ.body)
+    metadata:
+      category: security

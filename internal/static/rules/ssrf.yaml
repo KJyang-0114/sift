@@ -1,0 +1,47 @@
+rules:
+  - id: sift.ssrf-http-request
+    message: |
+      [SSRF] 使用者輸入直接傳入 HTTP 請求 URL，可能導致 Server-Side Request Forgery。
+      請驗證目標 URL 是否在白名單內，或阻擋內部 IP（127.0.0.1, 10.x, 192.168.x）。
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - go
+      - java
+    patterns:
+      - pattern-either:
+          - pattern: requests.get($INPUT)
+          - pattern: requests.post($URL, ...)
+          - pattern: axios.get($URL)
+          - pattern: axios.post($URL)
+          - pattern: http.Get($URL)
+          - pattern: fetch($URL)
+          - pattern: urllib.request.urlopen($URL)
+          - pattern: $HTTP.get($URL)
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      owasp: "A10:2021 - Server-Side Request Forgery"
+
+  - id: sift.ssrf-url-construction
+    message: |
+      [SSRF] URL 由使用者輸入拼接而成，攻擊者可控制請求目標。
+    severity: WARNING
+    languages:
+      - python
+      - javascript
+      - typescript
+      - go
+    patterns:
+      - pattern-either:
+          - pattern: |
+              requests.get("..." + $VAR)
+          - pattern: |
+              $URL = "..." + $INPUT
+              ...
+              requests.get($URL)
+    metadata:
+      category: security
+      cwe: "CWE-918"

@@ -1,0 +1,62 @@
+rules:
+  - id: sift.stack-trace-exposure
+    message: |
+      [Error Handling] 錯誤訊息直接回傳給客戶端，可能洩漏內部架構、檔案路徑、資料庫結構。
+      請在 production 中設定 generic error page，將詳細錯誤只記錄到 server log。
+    severity: WARNING
+    languages:
+      - javascript
+      - typescript
+      - python
+      - go
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $APP.use($ERR, $REQ, res, $NEXT) => { res.send($ERR.stack) }
+          - pattern: |
+              $APP.use($ERR, $REQ, res, $NEXT) => { res.status(500).send($ERR) }
+          - pattern: |
+              res.status(500).json({error: $ERR.message})
+          - pattern: |
+              return $ERR.Error()
+    metadata:
+      category: security
+      cwe: "CWE-209"
+
+  - id: sift.debug-mode-production
+    message: |
+      [Deployment Security] DEBUG 模式可能在 Production 中啟用。
+      這可能暴露敏感資訊、允許任意程式碼執行（如 Werkzeug debugger）。
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+    patterns:
+      - pattern-either:
+          - pattern: |
+              DEBUG = True
+          - pattern: |
+              app.run(debug=True)
+          - pattern: |
+              NODE_ENV=development
+          - pattern: |
+              app.set('env', 'development')
+    metadata:
+      category: security
+      cwe: "CWE-489"
+
+  - id: sift.unhandled-rejection
+    message: |
+      [Error Handling] 未捕獲的 Promise rejection 可能導致 Node.js 程序崩潰。
+      請在應用層加入 process.on('unhandledRejection') 處理。
+    severity: WARNING
+    languages:
+      - javascript
+      - typescript
+    patterns:
+      - pattern-either:
+          - pattern: |
+              process.on('unhandledRejection', $HANDLER)
+    metadata:
+      category: reliability

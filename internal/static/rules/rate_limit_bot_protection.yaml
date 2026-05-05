@@ -1,0 +1,57 @@
+rules:
+  - id: sift.rate-limit-missing
+    message: |
+      [公網安全] 未檢測到 Rate Limiting 機制。
+      部署到公網的服務必須有 Rate Limiting 以防止暴力攻擊、DDoS、爬蟲掃描。
+      請使用 express-rate-limit / django-ratelimit / gin-limiter。
+    severity: HIGH
+    languages:
+      - javascript
+      - typescript
+      - python
+      - go
+    patterns:
+      - pattern-either:
+          - pattern: |
+              app.use(rateLimit($CONFIG))
+          - pattern: |
+              @ratelimit($CONFIG)
+          - pattern: |
+              Limiter($CONFIG)
+    metadata:
+      category: deployment-security
+
+  - id: sift.robot-txt-misconfigured
+    message: |
+      [公網安全] robots.txt 設定不當可能暴露敏感路徑給搜尋引擎爬蟲。
+    severity: INFO
+    paths:
+      include:
+        - "robots.txt"
+    metadata:
+      category: deployment-security
+
+  - id: sift.health-endpoint-exposed
+    message: |
+      [公網安全] Health check endpoint 可能暴露內部服務資訊。
+      請確保 /health /status /metrics 等端點有適當的存取控制。
+    severity: WARNING
+    languages:
+      - javascript
+      - typescript
+      - python
+      - go
+    patterns:
+      - pattern-either:
+          - pattern: |
+              app.get('/health', $HANDLER)
+          - pattern: |
+              app.get('/status', $HANDLER)
+          - pattern: |
+              app.get('/metrics', $HANDLER)
+          - pattern: |
+              @app.route('/health')
+          - pattern: |
+              http.HandleFunc("/health", $HANDLER)
+    metadata:
+      category: deployment-security

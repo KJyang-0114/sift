@@ -1,0 +1,51 @@
+rules:
+  - id: sift.graphql-introspection-enabled
+    message: |
+      [GraphQL Security] GraphQL Introspection 在生產環境中啟用。
+      攻擊者可透過 introspection 列舉所有可用查詢和欄位。
+      請在 production 環境中關閉 introspection。
+    severity: WARNING
+    languages:
+      - javascript
+      - typescript
+      - python
+    patterns:
+      - pattern-either:
+          - pattern: |
+              introspection: true
+          - pattern: |
+              graphqlHTTP({schema: $SCHEMA})
+    metadata:
+      category: security
+      cwe: "CWE-200"
+
+  - id: sift.graphql-depth-limit
+    message: |
+      [GraphQL Security] 未設定查詢深度限制，攻擊者可透過嵌套查詢發動 DoS。
+      請使用 graphql-depth-limit 或 graphql-query-complexity 限制查詢複雜度。
+    severity: WARNING
+    languages:
+      - javascript
+      - typescript
+    patterns:
+      - pattern-either:
+          - pattern: |
+              graphqlExpress($SCHEMA)
+          - pattern: |
+              ApolloServer({schema: $SCHEMA})
+    metadata:
+      category: security
+      cwe: "CWE-400"
+
+  - id: sift.graphql-batch-attack
+    message: |
+      [GraphQL Security] 未限制批次請求數量，攻擊者可發送大量別名查詢繞過 Rate Limiting。
+    severity: WARNING
+    languages:
+      - javascript
+      - typescript
+    patterns:
+      - pattern: |
+          batch: true
+    metadata:
+      category: security
