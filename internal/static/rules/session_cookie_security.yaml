@@ -1,63 +1,17 @@
 rules:
-  - id: sift.session-cookie-missing-secure
+  - id: sift.session-cookie-no-httponly
     message: |
-      [Session Security] Cookie 未設定 HttpOnly / Secure / SameSite 屬性。
-      HttpOnly 防止 XSS 竊取、Secure 只在 HTTPS 傳輸、SameSite 防止 CSRF。
+      [Session Security] Cookie 未設定 httpOnly（XSS 可竊取 Token）。
     severity: WARNING
     languages:
+      - python
       - javascript
       - typescript
-      - python
       - go
       - java
       - php
     patterns:
-      - pattern-either:
-          - pattern: |
-              res.cookie($NAME, $VALUE)
-          - pattern: |
-              res.cookie($NAME, $VALUE, {})
-          - pattern: |
-              response.set_cookie($NAME, $VALUE)
-          - pattern: |
-              http.SetCookie($WRITER, &http.Cookie{Name: $NAME})
+      - pattern-regex: (res\.cookie\(|set_cookie\(|SetCookie\()
     metadata:
       category: security
       cwe: "CWE-614"
-
-  - id: sift.session-cookie-weak-secret
-    message: |
-      [Session Security] Session Secret 長度不足（<32 chars）。
-      請使用至少 64 字元的隨機字串。
-    severity: WARNING
-    languages:
-      - javascript
-      - typescript
-      - python
-      - go
-    patterns:
-      - pattern-either:
-          - pattern: |
-              app.use(session({secret: "$SECRET"}))
-          - pattern: |
-              SESSION_SECRET = "$SECRET"
-          - pattern: |
-              SESSION_SECRET="$SECRET"
-    metadata:
-      category: security
-      cwe: "CWE-330"
-
-  - id: sift.session-fixation
-    message: |
-      [Session Security] 登入後未重新產生 Session ID，可能遭受 Session Fixation 攻擊。
-      請在成功驗證後呼叫 req.session.regenerate()。
-    severity: WARNING
-    languages:
-      - javascript
-      - typescript
-    patterns:
-      - pattern: |
-          res.cookie('session', $SESSIONID)
-    metadata:
-      category: security
-      cwe: "CWE-384"

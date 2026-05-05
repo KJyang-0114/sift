@@ -1,8 +1,8 @@
 rules:
-  - id: sift.sql-injection
+  - id: sift.sql-injection-concat
     message: |
-      [SQL Injection] 使用者輸入直接拼接到 SQL 查詢字串中。
-      請使用參數化查詢 (Prepared Statement)。
+      [SQL Injection] 字串拼接組成 SQL 查詢。
+      請使用參數化查詢。
     severity: ERROR
     languages:
       - python
@@ -11,28 +11,7 @@ rules:
       - go
       - java
     patterns:
-      - pattern-either:
-          - pattern: |
-              cursor.execute("..." + $VAR)
-          - pattern: |
-              cursor.execute(f"...{$VAR}...")
-          - pattern: |
-              $QUERY = "..." + $VAR
-              ...
-              cursor.execute($QUERY)
-          - pattern: |
-              connection.query("SELECT ... " + $VAR)
-          - pattern: |
-              db.query(`SELECT ... ${$VAR}`)
-          - pattern: |
-              db.execute("SELECT ... " + $INPUT)
-          - pattern: |
-              db.Query("SELECT ... " + $VAR)
-          - pattern: |
-              fmt.Sprintf("SELECT ... %s", $VAR)
-          - pattern: |
-              statement.executeQuery("SELECT ... " + $VAR)
+      - pattern-regex: (execute\(|query\(|Query\(|\.execute\().*\+.*\)
     metadata:
       category: security
       cwe: "CWE-89"
-      owasp: "A03:2021 - Injection"

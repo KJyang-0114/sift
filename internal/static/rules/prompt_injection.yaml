@@ -1,8 +1,8 @@
 rules:
   - id: sift.prompt-injection-risk
     message: |
-      [Prompt Injection Risk] 使用者輸入直接傳入 LLM Prompt，可能遭受 Prompt Injection 攻擊。
-      請在 prompt 中明確分離使用者輸入與系統指令，加入輸入過濾標記。
+      [Prompt Injection] 使用者輸入直接傳入 LLM API 調用。
+      請在 prompt 中分離使用者輸入與系統指令。
     severity: WARNING
     languages:
       - python
@@ -10,17 +10,7 @@ rules:
       - typescript
       - go
     patterns:
-      - pattern-either:
-          - pattern: |
-              $CLIENT.chat.completions.create(..., messages=[{"role": "user", "content": $REQ.$FIELD}])
-          - pattern: |
-              $CLIENT.chat.completions.create(..., messages=[{"role": "user", "content": $INPUT}])
-          - pattern: |
-              $CLIENT.messages.create(..., messages=[{"role": "user", "content": $REQ.$FIELD}])
-          - pattern: |
-              $CHAIN.invoke({"input": $REQ.$FIELD})
-          - pattern: |
-              $CHAIN.run($REQ.$FIELD)
+      - pattern-regex: (\.chat\.completions\.create|\.messages\.create|\.invoke|\.run|\.generate\()
     metadata:
       category: security
       cwe: "CWE-77"

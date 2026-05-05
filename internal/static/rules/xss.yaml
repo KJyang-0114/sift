@@ -1,28 +1,18 @@
 rules:
-  - id: sift.xss-reflected
+  - id: sift.xss-reflected-output
     message: |
-      [XSS] 使用者輸入未經過處理直接寫入 HTML 回應。
-      請對輸出做 HTML Entity 編碼或使用安全的模板引擎。
+      [XSS] 使用者輸入直接寫入 HTTP 回應。
+      請做 HTML Entity 編碼或使用安全的模板引擎。
     severity: ERROR
     languages:
+      - python
       - javascript
       - typescript
-      - python
+      - go
       - php
       - ruby
-      - go
     patterns:
-      - pattern-either:
-          - pattern: res.send($REQ.body.$FIELD)
-          - pattern: res.send($REQ.query.$FIELD)
-          - pattern: res.send($REQ.params.$FIELD)
-          - pattern: document.write($VAR)
-          - pattern: $EL.innerHTML = $VAR
-          - pattern: return $REQ.args.get($FIELD)
-          - pattern: HttpResponse($REQ.GET.get($FIELD))
-          - pattern: echo $_GET[$FIELD]
-          - pattern: echo $_POST[$FIELD]
-          - pattern: t.Execute($WRITER, $REQ.FormValue($FIELD))
+      - pattern-regex: (\.send\(.*req\.|echo \$_GET|echo \$_POST|HttpResponse\(.*request\.|innerHTML\s*=)
     metadata:
       category: security
       cwe: "CWE-79"

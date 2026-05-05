@@ -1,27 +1,22 @@
 rules:
   - id: sift.frontend-dangerouslySetInnerHTML
     message: |
-      [Frontend XSS] dangerouslySetInnerHTML 直接渲染使用者輸入，可能導致 XSS。
-      請使用 DOMPurify 或 React 的自動轉義機制，避免直接插入 HTML。
+      [XSS] dangerouslySetInnerHTML 直接渲染使用者輸入，可能導致 XSS。
+      請使用 DOMPurify 或避免直接插入 HTML。
     severity: ERROR
     languages:
       - javascript
       - typescript
-      - tsx
-      - jsx
     patterns:
-      - pattern: dangerouslySetInnerHTML={{__html: $INPUT}}
-      - pattern: |
-          <$TAG dangerouslySetInnerHTML={{__html: $INPUT}} />
+      - pattern: dangerouslySetInnerHTML
     metadata:
       category: security
       cwe: "CWE-79"
-      owasp: "A03:2021 - Injection"
 
-  - id: sift.frontend-innerHTML-assignment
+  - id: sift.frontend-innerHTML
     message: |
-      [Frontend XSS] 直接設定 innerHTML/outerHTML 可能插入惡意腳本。
-      請改用 textContent 或先對內容做 sanitize。
+      [XSS] innerHTML/outerHTML/document.write 可能插入惡意腳本。
+      請改用 textContent 或先做 sanitize。
     severity: WARNING
     languages:
       - javascript
@@ -29,53 +24,27 @@ rules:
     patterns:
       - pattern-either:
           - pattern: $EL.innerHTML = $INPUT
-          - pattern: $EL.outerHTML = $INPUT
-          - pattern: $EL.insertAdjacentHTML($POS, $INPUT)
           - pattern: document.write($INPUT)
-          - pattern: document.writeln($INPUT)
     metadata:
       category: security
       cwe: "CWE-79"
 
-  - id: sift.frontend-vue-v-html
+  - id: sift.frontend-eval
     message: |
-      [Frontend XSS] Vue 的 v-html 指令直接插入原始 HTML。
-      除非內容已經過 sanitize，否則應使用模板插值 {{ }}。
-    severity: ERROR
-    languages:
-      - vue
-      - html
-    patterns:
-      - pattern: |
-          <$TAG v-html="$INPUT" />
-      - pattern: |
-          <$TAG v-html="$INPUT"></$TAG>
-    metadata:
-      category: security
-      cwe: "CWE-79"
-
-  - id: sift.frontend-eval-usage
-    message: |
-      [Frontend XSS] 使用 eval() 執行包含使用者輸入的動態程式碼。
-      eval() 可執行任意 JavaScript，是嚴重的安全漏洞。
+      [XSS] eval() 可執行任意 JavaScript。
     severity: ERROR
     languages:
       - javascript
       - typescript
     patterns:
-      - pattern-either:
-          - pattern: eval($INPUT)
-          - pattern: new Function($INPUT)
-          - pattern: setTimeout($STRING, $DELAY)
-          - pattern: setInterval($STRING, $DELAY)
+      - pattern: eval($INPUT)
     metadata:
       category: security
       cwe: "CWE-95"
 
-  - id: sift.frontend-unsafe-localStorage
+  - id: sift.frontend-localStorage
     message: |
-      [Frontend Security] 敏感資料儲存在 localStorage/sessionStorage 中。
-      localStorage 可被任何同源 JS 存取，不應存放 Token 或密碼。
+      [Security] localStorage 不應存放敏感資料（Token、密碼）。
       請改用 httpOnly Cookie。
     severity: WARNING
     languages:
@@ -83,30 +52,23 @@ rules:
       - typescript
     patterns:
       - pattern-either:
-          - pattern: |
-              localStorage.setItem($KEY, $TOKEN)
-          - pattern: |
-              sessionStorage.setItem($KEY, $TOKEN)
+          - pattern: localStorage.setItem($K, $V)
+          - pattern: sessionStorage.setItem($K, $V)
     metadata:
       category: security
       cwe: "CWE-922"
 
   - id: sift.frontend-open-redirect
     message: |
-      [Frontend Security] window.location 使用使用者可控的 URL 可能導致 Open Redirect。
-      請驗證目標 URL 是否在白名單內。
+      [Security] window.location 使用使用者可控的 URL 可能導致 Open Redirect。
     severity: WARNING
     languages:
       - javascript
       - typescript
     patterns:
       - pattern-either:
-          - pattern: |
-              window.location.href = $INPUT
-          - pattern: |
-              window.location.replace($INPUT)
-          - pattern: |
-              window.location.assign($INPUT)
+          - pattern: window.location.href = $U
+          - pattern: window.location.replace($U)
     metadata:
       category: security
       cwe: "CWE-601"

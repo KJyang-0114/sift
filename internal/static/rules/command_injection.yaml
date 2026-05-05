@@ -1,8 +1,8 @@
 rules:
-  - id: sift.command-injection
+  - id: sift.command-injection-shell
     message: |
-      [Command Injection] 使用者輸入可能被傳入系統 Shell。
-      請避免使用 shell=True，改用參數陣列形式，或對輸入做嚴格白名單驗證。
+      [Command Injection] 偵測到 Shell 命令執行。
+      請避免 shell=True，改用參數陣列或嚴格驗證輸入。
     severity: ERROR
     languages:
       - python
@@ -13,24 +13,7 @@ rules:
       - ruby
       - php
     patterns:
-      - pattern-either:
-          - pattern: os.system($CMD)
-          - pattern: os.popen($CMD)
-          - pattern: subprocess.call($CMD, shell=True)
-          - pattern: subprocess.Popen($CMD, shell=True)
-          - pattern: exec($CMD)
-          - pattern: child_process.exec($CMD)
-          - pattern: child_process.execSync($CMD)
-          - pattern: exec.Command("bash", "-c", $CMD)
-          - pattern: exec.Command("sh", "-c", $CMD)
-          - pattern: exec($CMD)
-          - pattern: system($CMD)
-          - pattern: shell_exec($CMD)
-          - pattern: |
-              `$CMD`
-          - pattern: system($CMD)
-          - pattern: exec($CMD)
+      - pattern-regex: (os\.system|subprocess|child_process\.exec|shell_exec\()
     metadata:
       category: security
       cwe: "CWE-78"
-      owasp: "A03:2021 - Injection"
