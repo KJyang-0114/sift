@@ -1,0 +1,72 @@
+name: Sift Security Scan
+
+# Sift 全自動程式碼安全掃描 GitHub Action
+# 使用方式：複製此檔案到你的 .github/workflows/ 目錄
+#
+# 需要設定 Secrets:
+#   SIFT_LLM_API_KEY  — 你的 LLM API Key (可選，無 LLM 時只跑 Semgrep)
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  sift-scan:
+    name: Sift Code Security Scan
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Sift
+        run: |
+          SIFT_VERSION=$(curl -s https://api.github.com/repos/KJyang-0114/sift/releases/latest | jq -r .tag_name)
+          if [ -z "$SIFT_VERSION" ] || [ "$SIFT_VERSION" = "null" ]; then
+            echo "No release found, installing from source..."
+            git clone https://github.com/KJyang-0114/sift.git /tmp/sift
+            cd /tmp/sift && go build -o /usr/local/bin/sift ./cmd/sift/
+          else
+            OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+            ARCH=$(uname -m)
+            case "$ARCH" in
+              x86_64) ARCH="amd64" ;;
+              aarch64|arm64) ARCH="arm64" ;;
+            esac
+            curl -fsSL "https://github.com/KJyang-0114/sift/releases/download/${SIFT_VERSION}/sift_${OS}_${ARCH}.tar.gz" \
+              | sudo tar -xz -C /usr/local/bin sift
+          fi
+
+      - name: Run Sift Scan
+        env:
+          SIFT_LLM_PROVIDER: ${{ secrets.SIFT_LLM_PROVIDER || 'offline' }}
+          SIFT_LLM_API_KEY: ${{ secrets.SIFT_LLM_API_KEY || '' }}
+          SIFT_LLM_MODEL: ${{ secrets.SIFT_LLM_MODEL || 'claude-sonnet-4-6' }}
+        run: |
+          sift scan . --format sarif > sift-results.sarif
+          sift scan . --format terminal
+
+      - name: Upload SARIF Results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: sift-results.sarif
+          category: sift
+
+      - name: Comment PR with Results
+        if: github.event_name == 'pull_request' && always()
+        run: |
+          sift scan . --format llm > sift-llm-report.md
+          echo '## 🔍 Sift Security Scan Results' > pr-comment.md
+          echo '' >> pr-comment.md
+          cat sift-llm-report.md >> pr-comment.md
+          gh pr comment ${{ github.event.pull_request.number }} --body-file pr-comment.md || true
+        env:
+          GH_TOKEN: ${{ github.token }}
