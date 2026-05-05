@@ -122,7 +122,7 @@ func (tg *TestGenerator) collectPythonFiles(target string, maxFiles int) ([]stri
 	skipDirs := map[string]bool{
 		"node_modules": true, "vendor": true, ".git": true,
 		"__pycache__": true, "dist": true, "target": true,
-		"build": true, ".venv": true, "venv": true,
+		"build": true, ".venv": true, "venv": true, "site-packages": true,
 	}
 
 	err := filepath.Walk(target, func(path string, info os.FileInfo, err error) error {

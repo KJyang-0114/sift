@@ -19,6 +19,7 @@ type Orchestrator struct {
 	staticAnalyzers  []static.Analyzer
 	dynamicAnalyzers []static.Analyzer
 	reporters        *report.Engine
+	lastFindings     []static.Finding
 }
 
 // NewOrchestrator 建立掃描協調器。
@@ -88,6 +89,7 @@ func (o *Orchestrator) Run(target string, format string) error {
 	fmt.Println()
 
 	// 輸出報告
+	o.lastFindings = allFindings
 	o.reporters.Render(allFindings, target, time.Since(start), format)
 
 	return nil
@@ -128,6 +130,11 @@ func findRulesDir() string {
 		}
 	}
 	return "internal/static/rules"
+}
+
+// LastFindings 回傳最近一次掃描的所有 findings。
+func (o *Orchestrator) LastFindings() []static.Finding {
+	return o.lastFindings
 }
 
 func absTarget(target string) string {

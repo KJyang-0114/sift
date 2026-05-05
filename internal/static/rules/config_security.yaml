@@ -1,0 +1,82 @@
+rules:
+  - id: sift.config-csp-missing
+    message: |
+      [Config Security] 未設定 Content-Security-Policy Header。
+      CSP 是防禦 XSS 和 Data Injection 的第一道防線。
+    severity: WARNING
+    languages:
+      - javascript
+      - typescript
+    patterns:
+      - pattern-either:
+          - pattern: |
+              app.use(helmet())
+          - pattern: |
+              res.setHeader('Content-Security-Policy', $POLICY)
+          - pattern: |
+              app.use(cors())
+    metadata:
+      category: config-security
+
+  - id: sift.config-cors-wildcard
+    message: |
+      [Config Security] CORS 設定為 wildcard (*) 允許任意來源存取 API。
+      這可能導致 CSRF 和資料竊取。請指定明確的允許來源。
+    severity: WARNING
+    languages:
+      - javascript
+      - typescript
+      - python
+      - go
+      - java
+    patterns:
+      - pattern-either:
+          - pattern: |
+              Access-Control-Allow-Origin: *
+          - pattern: |
+              res.setHeader('Access-Control-Allow-Origin', '*')
+          - pattern: |
+              cors({origin: '*'})
+          - pattern: |
+              CORS_ALLOW_ALL_ORIGINS = True
+          - pattern: |
+              allow_origins=["*"]
+    metadata:
+      category: config-security
+      cwe: "CWE-942"
+
+  - id: sift.config-env-file-exposure
+    message: |
+      [Config Security] .env 檔案可能在部署時被暴露。
+      請確保 .env 已加入 .gitignore，且伺服器設定禁止存取隱藏檔案。
+    severity: HIGH
+    paths:
+      include:
+        - ".env"
+        - "*.env"
+        - ".env.local"
+        - ".env.production"
+    metadata:
+      category: config-security
+
+  - id: sift.config-hardcoded-port
+    message: |
+      [Config Security] Port 號硬編碼。建議使用環境變數 PORT 以便不同環境配置。
+    severity: INFO
+    languages:
+      - python
+      - javascript
+      - typescript
+      - go
+    patterns:
+      - pattern-either:
+          - pattern: |
+              app.listen(3000)
+          - pattern: |
+              app.listen(8080)
+          - pattern: |
+              http.ListenAndServe(":3000", $HANDLER)
+          - pattern: |
+              http.ListenAndServe(":8080", $HANDLER)
+    metadata:
+      category: config-security

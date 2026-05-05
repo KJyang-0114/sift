@@ -112,6 +112,7 @@ func (sa *SemanticAnalyzer) collectFiles(target string, maxFiles int) ([]string,
 		"node_modules": true, "vendor": true, ".git": true,
 		"__pycache__": true, "dist": true, "target": true,
 		"build": true, ".next": true, ".svelte-kit": true,
+		"venv": true, ".venv": true, "site-packages": true,
 	}
 
 	err := filepath.Walk(target, func(path string, info os.FileInfo, err error) error {

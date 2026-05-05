@@ -81,7 +81,7 @@ func (pv *PackageVerifier) findDepFiles(target string) ([]DepFile, error) {
 		}
 
 		// 跳過常見排除目錄
-		skipDirs := []string{"node_modules", "vendor", ".git", "__pycache__", "dist", "target"}
+		skipDirs := []string{"node_modules", "vendor", ".git", "__pycache__", "dist", "target", "venv", ".venv", "site-packages"}
 		if info.IsDir() {
 			for _, d := range skipDirs {
 				if info.Name() == d {

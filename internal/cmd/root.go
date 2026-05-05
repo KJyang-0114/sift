@@ -31,6 +31,7 @@ func NewRootCmd(version, commit, date string) *cobra.Command {
 
 	root.AddCommand(newInitCmd())
 	root.AddCommand(newScanCmd())
+	root.AddCommand(newFixCmd())
 	root.AddCommand(newConfigCmd())
 
 	return root
