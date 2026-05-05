@@ -1,8 +1,10 @@
 package cmd
 
 import (
-	"fmt"
+	"os"
 
+	"github.com/KJyang-0114/sift/internal/config"
+	"github.com/KJyang-0114/sift/internal/scan"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +21,6 @@ func newScanCmd() *cobra.Command {
 		Short: "掃描程式碼安全漏洞",
 		Long: `scan 對指定路徑執行全自動安全掃描，包含：
   - 靜態規則掃描 (Semgrep)
-  - LLM 語意分析 (可選)
   - 幻覺套件檢測
   - 沙盒動態測試 (可選)
 
@@ -30,8 +31,30 @@ func newScanCmd() *cobra.Command {
 			if len(args) > 0 {
 				target = args[0]
 			}
-			fmt.Printf("🔍 掃描中: %s\n", target)
-			fmt.Println("(掃描引擎開發中 — 敬請期待 MVP)")
+
+			// 載入設定
+			cfg, _, err := config.Load()
+			if err != nil {
+				return err
+			}
+
+			// 命令列參數覆蓋設定
+			if cmd.Flags().Changed("timeout") {
+				cfg.Scan.Timeout = timeout
+			}
+			if cmd.Flags().Changed("sandbox") {
+				cfg.Scan.Sandbox = sandbox
+			}
+			if cmd.Flags().Changed("format") {
+				cfg.Output.Format = format
+			}
+
+			// 建立並執行掃描
+			orch := scan.NewOrchestrator(cfg)
+			if err := orch.Run(target, cfg.Output.Format); err != nil {
+				os.Exit(1)
+			}
+
 			return nil
 		},
 	}

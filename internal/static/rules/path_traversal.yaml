@@ -1,0 +1,28 @@
+rules:
+  - id: sift.path-traversal
+    message: |
+      [Path Traversal] 檔案路徑由使用者輸入構成，可能被 ../ 繞出預期目錄。
+      請正規化路徑後驗證是否在允許的基礎路徑內。
+    severity: WARNING
+    languages:
+      - python
+      - javascript
+      - typescript
+      - go
+      - java
+      - php
+    patterns:
+      - pattern-either:
+          - pattern: open($PATH)
+          - pattern: open($BASE + $PATH)
+          - pattern: os.path.join($BASE, $VAR)
+          - pattern: fs.readFileSync($PATH)
+          - pattern: fs.readFile($PATH)
+          - pattern: os.ReadFile($PATH)
+          - pattern: ioutil.ReadFile($PATH)
+          - pattern: file_get_contents($PATH)
+          - pattern: new FileReader($PATH)
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      owasp: "A01:2021 - Broken Access Control"

@@ -1,0 +1,42 @@
+rules:
+  - id: sift.sql-injection
+    message: |
+      [SQL Injection] 使用者輸入直接拼接到 SQL 查詢字串中。
+      請使用參數化查詢 (Prepared Statement)。
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - go
+      - java
+    patterns:
+      - pattern-either:
+          # Python
+          - pattern: |
+              cursor.execute("..." + $VAR)
+          - pattern: |
+              cursor.execute(f"...{$VAR}...")
+          - pattern: |
+              $QUERY = "..." + $VAR
+              ...
+              cursor.execute($QUERY)
+          # JavaScript / TypeScript
+          - pattern: |
+              connection.query("SELECT ... " + $VAR)
+          - pattern: |
+              db.query(`SELECT ... ${$VAR}`)
+          - pattern: |
+              db.execute("SELECT ... " + $INPUT)
+          # Go
+          - pattern: |
+              db.Query("SELECT ... " + $VAR)
+          - pattern: |
+              fmt.Sprintf("SELECT ... %s", $VAR)
+          # Java
+          - pattern: |
+              statement.executeQuery("SELECT ... " + $VAR)
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      owasp: "A03:2021 - Injection"

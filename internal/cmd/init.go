@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/sift-dev/sift/internal/config"
+	"github.com/KJyang-0114/sift/internal/config"
 	"github.com/spf13/cobra"
 )
 

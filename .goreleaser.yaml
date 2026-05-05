@@ -54,7 +54,7 @@ changelog:
 
 release:
   github:
-    owner: sift-dev
+    owner: KJyang-0114
     name: sift
   draft: false
   prerelease: auto

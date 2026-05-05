@@ -33,7 +33,7 @@ curl -fsSL https://get.sift.dev | bash
 
 ```bash
 # 1. 取得最新版本號
-SIFT_VERSION=$(curl -s https://api.github.com/repos/sift-dev/sift/releases/latest | jq -r .tag_name)
+SIFT_VERSION=$(curl -s https://api.github.com/repos/KJyang-0114/sift/releases/latest | jq -r .tag_name)
 
 # 2. 偵測作業系統與架構
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -44,7 +44,7 @@ case "$ARCH" in
 esac
 
 # 3. 下載並安裝
-curl -fsSL "https://github.com/sift-dev/sift/releases/download/${SIFT_VERSION}/sift_${OS}_${ARCH}.tar.gz" \
+curl -fsSL "https://github.com/KJyang-0114/sift/releases/download/${SIFT_VERSION}/sift_${OS}_${ARCH}.tar.gz" \
   | sudo tar -xz -C /usr/local/bin sift
 
 # 4. 驗證安裝
@@ -54,7 +54,7 @@ sift --version
 ### 從原始碼編譯
 
 ```bash
-git clone https://github.com/sift-dev/sift.git
+git clone https://github.com/KJyang-0114/sift.git
 cd sift
 go build -o sift ./cmd/sift/
 sudo mv sift /usr/local/bin/
@@ -108,7 +108,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: sift-dev/sift-action@v1
+      - uses: KJyang-0114/sift-action@v1
         with:
           api_key: ${{ secrets.SIFT_LLM_API_KEY }}
 ```

@@ -1,0 +1,30 @@
+rules:
+  - id: sift.prompt-injection-risk
+    message: |
+      [Prompt Injection Risk] 使用者輸入直接傳入 LLM Prompt，可能遭受 Prompt Injection 攻擊。
+      請在 prompt 中明確分離使用者輸入與系統指令，加入輸入過濾標記。
+    severity: WARNING
+    languages:
+      - python
+      - javascript
+      - typescript
+      - go
+    patterns:
+      - pattern-either:
+          # OpenAI SDK
+          - pattern: |
+              $CLIENT.chat.completions.create(..., messages=[{"role": "user", "content": $REQ.$FIELD}])
+          - pattern: |
+              $CLIENT.chat.completions.create(..., messages=[{"role": "user", "content": $INPUT}])
+          # Anthropic SDK
+          - pattern: |
+              $CLIENT.messages.create(..., messages=[{"role": "user", "content": $REQ.$FIELD}])
+          # LangChain
+          - pattern: |
+              $CHAIN.invoke({"input": $REQ.$FIELD})
+          - pattern: |
+              $CHAIN.run($REQ.$FIELD)
+    metadata:
+      category: security
+      cwe: "CWE-77"
+      owasp: "LLM01:2025 - Prompt Injection"

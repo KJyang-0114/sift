@@ -1,0 +1,41 @@
+rules:
+  - id: sift.command-injection
+    message: |
+      [Command Injection] 使用者輸入可能被傳入系統 Shell。
+      請避免使用 shell=True，改用參數陣列形式，或對輸入做嚴格白名單驗證。
+    severity: ERROR
+    languages:
+      - python
+      - javascript
+      - typescript
+      - go
+      - java
+      - ruby
+      - php
+    patterns:
+      - pattern-either:
+          # Python
+          - pattern: os.system($CMD)
+          - pattern: os.popen($CMD)
+          - pattern: subprocess.call($CMD, shell=True)
+          - pattern: subprocess.Popen($CMD, shell=True)
+          # JavaScript / TypeScript
+          - pattern: exec($CMD)
+          - pattern: child_process.exec($CMD)
+          - pattern: child_process.execSync($CMD)
+          # Go
+          - pattern: exec.Command("bash", "-c", $CMD)
+          - pattern: exec.Command("sh", "-c", $CMD)
+          # PHP
+          - pattern: exec($CMD)
+          - pattern: system($CMD)
+          - pattern: shell_exec($CMD)
+          # Ruby
+          - pattern: |
+              `$CMD`
+          - pattern: system($CMD)
+          - pattern: exec($CMD)
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      owasp: "A03:2021 - Injection"

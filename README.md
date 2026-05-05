@@ -33,7 +33,7 @@ If you're an AI coding agent helping a user install Sift, run these commands:
 
 ```bash
 # 1. Get the latest version
-SIFT_VERSION=$(curl -s https://api.github.com/repos/sift-dev/sift/releases/latest | jq -r .tag_name)
+SIFT_VERSION=$(curl -s https://api.github.com/repos/KJyang-0114/sift/releases/latest | jq -r .tag_name)
 
 # 2. Detect OS and architecture
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -44,7 +44,7 @@ case "$ARCH" in
 esac
 
 # 3. Download and install
-curl -fsSL "https://github.com/sift-dev/sift/releases/download/${SIFT_VERSION}/sift_${OS}_${ARCH}.tar.gz" \
+curl -fsSL "https://github.com/KJyang-0114/sift/releases/download/${SIFT_VERSION}/sift_${OS}_${ARCH}.tar.gz" \
   | sudo tar -xz -C /usr/local/bin sift
 
 # 4. Verify
@@ -54,7 +54,7 @@ sift --version
 ### Build from Source
 
 ```bash
-git clone https://github.com/sift-dev/sift.git
+git clone https://github.com/KJyang-0114/sift.git
 cd sift
 go build -o sift ./cmd/sift/
 sudo mv sift /usr/local/bin/
@@ -108,7 +108,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: sift-dev/sift-action@v1
+      - uses: KJyang-0114/sift-action@v1
         with:
           api_key: ${{ secrets.SIFT_LLM_API_KEY }}
 ```

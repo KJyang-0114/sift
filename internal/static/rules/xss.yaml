@@ -1,0 +1,35 @@
+rules:
+  - id: sift.xss-reflected
+    message: |
+      [XSS] 使用者輸入未經過處理直接寫入 HTML 回應。
+      請對輸出做 HTML Entity 編碼或使用安全的模板引擎。
+    severity: ERROR
+    languages:
+      - javascript
+      - typescript
+      - python
+      - php
+      - ruby
+      - go
+    patterns:
+      - pattern-either:
+          # Express.js
+          - pattern: res.send($REQ.body.$FIELD)
+          - pattern: res.send($REQ.query.$FIELD)
+          - pattern: res.send($REQ.params.$FIELD)
+          # Vanilla JS
+          - pattern: document.write($VAR)
+          - pattern: $EL.innerHTML = $VAR
+          # Python Flask
+          - pattern: return $REQ.args.get($FIELD)
+          # Python Django
+          - pattern: HttpResponse($REQ.GET.get($FIELD))
+          # PHP
+          - pattern: echo $_GET[$FIELD]
+          - pattern: echo $_POST[$FIELD]
+          # Go html/template 自動轉義安全, 但 text/template 不安全
+          - pattern: t.Execute($WRITER, $REQ.FormValue($FIELD))
+    metadata:
+      category: security
+      cwe: "CWE-79"
+      owasp: "A03:2021 - Injection"
