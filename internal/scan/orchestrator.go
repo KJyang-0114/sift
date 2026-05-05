@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/KJyang-0114/sift/internal/agent"
+	"github.com/KJyang-0114/sift/internal/cache"
 	"github.com/KJyang-0114/sift/internal/config"
 	"github.com/KJyang-0114/sift/internal/report"
 	"github.com/KJyang-0114/sift/internal/static"
+	"github.com/KJyang-0114/sift/internal/store"
 )
 
 // Orchestrator 協調所有分析器，執行全自動掃描流程。
@@ -20,6 +22,9 @@ type Orchestrator struct {
 	dynamicAnalyzers []static.Analyzer
 	reporters        *report.Engine
 	lastFindings     []static.Finding
+	fileCache        *cache.FileCache
+	dbStore          *store.Store
+	pool             *WorkerPool
 }
 
 // NewOrchestrator 建立掃描協調器。
@@ -42,11 +47,23 @@ func NewOrchestrator(cfg *config.Config) *Orchestrator {
 		}
 	}
 
+	// 企業級：初始化快取（增量掃描）
+	fc, _ := cache.NewFileCache(".")
+
+	// 企業級：初始化 SQLite 持久化
+	dbStore, _ := store.NewStore(".")
+
+	// 企業級：Worker Pool（控制並發數、避免 API Rate Limit）
+	pool := NewWorkerPool(cfg.Scan.Concurrency, time.Duration(cfg.Scan.Timeout)*time.Second)
+
 	return &Orchestrator{
 		cfg:              cfg,
 		staticAnalyzers:  staticAnalyzers,
 		dynamicAnalyzers: dynamicAnalyzers,
 		reporters:        report.NewEngine(cfg),
+		fileCache:        fc,
+		dbStore:          dbStore,
+		pool:             pool,
 	}
 }
 
@@ -105,6 +122,15 @@ func (o *Orchestrator) Run(target string, format string) error {
 
 	// 輸出報告
 	o.lastFindings = allFindings
+
+	// 企業級：持久化到 SQLite + 快取
+	if o.dbStore != nil {
+		o.dbStore.SaveScan(target, time.Since(start), allFindings, 0)
+	}
+	if o.fileCache != nil {
+		o.fileCache.Save()
+	}
+
 	o.reporters.Render(allFindings, target, time.Since(start), format)
 
 	return nil
