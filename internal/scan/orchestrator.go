@@ -27,12 +27,19 @@ func NewOrchestrator(cfg *config.Config) *Orchestrator {
 	semgrep := static.NewSemgrepAnalyzer(rulesDir, time.Duration(cfg.Scan.Timeout)*time.Second)
 	pkgVerifier := agent.NewPackageVerifier()
 
+	analyzers := []static.Analyzer{semgrep, pkgVerifier}
+
+	// 如果設定了 LLM，加入語意分析
+	if cfg.LLM.Provider != config.ProviderOffline && cfg.LLM.APIKey != "" {
+		semanticAnalyzer, err := agent.NewSemanticAnalyzer(cfg)
+		if err == nil {
+			analyzers = append(analyzers, semanticAnalyzer)
+		}
+	}
+
 	return &Orchestrator{
-		cfg: cfg,
-		analyzers: []static.Analyzer{
-			semgrep,
-			pkgVerifier,
-		},
+		cfg:       cfg,
+		analyzers: analyzers,
 		reporters: report.NewEngine(cfg),
 	}
 }
