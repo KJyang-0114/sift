@@ -11,15 +11,12 @@ rules:
       - go
     patterns:
       - pattern-either:
-          # OpenAI SDK
           - pattern: |
               $CLIENT.chat.completions.create(..., messages=[{"role": "user", "content": $REQ.$FIELD}])
           - pattern: |
               $CLIENT.chat.completions.create(..., messages=[{"role": "user", "content": $INPUT}])
-          # Anthropic SDK
           - pattern: |
               $CLIENT.messages.create(..., messages=[{"role": "user", "content": $REQ.$FIELD}])
-          # LangChain
           - pattern: |
               $CHAIN.invoke({"input": $REQ.$FIELD})
           - pattern: |

@@ -12,21 +12,16 @@ rules:
       - javascript
     patterns:
       - pattern-either:
-          # Python
           - pattern: pickle.loads($INPUT)
           - pattern: pickle.load($INPUT)
           - pattern: yaml.load($INPUT)
           - pattern: eval($INPUT)
           - pattern: exec($INPUT)
-          # JavaScript
           - pattern: eval($INPUT)
-          # PHP
           - pattern: unserialize($INPUT)
-          # Ruby
           - pattern: YAML.load($INPUT)
           - pattern: Marshal.load($INPUT)
           - pattern: eval($INPUT)
-          # Java
           - pattern: $OBJECT.readObject()
     metadata:
       category: security

@@ -10,11 +10,13 @@ import (
 type LLMProvider string
 
 const (
-	ProviderAnthropic  LLMProvider = "anthropic"
-	ProviderOpenAI     LLMProvider = "openai"
-	ProviderOpenRouter LLMProvider = "openrouter"
-	ProviderOllama     LLMProvider = "ollama"
-	ProviderOffline    LLMProvider = "offline"
+	ProviderAnthropic   LLMProvider = "anthropic"
+	ProviderOpenAI      LLMProvider = "openai"
+	ProviderOpenRouter  LLMProvider = "openrouter"
+	ProviderOllama      LLMProvider = "ollama"
+	ProviderSiliconFlow LLMProvider = "siliconflow"
+	ProviderGemini      LLMProvider = "gemini"
+	ProviderOffline     LLMProvider = "offline"
 )
 
 // Config 是 Sift 的完整設定結構。
@@ -74,6 +76,10 @@ func (l *LLMConfig) DefaultModel() string {
 		return "anthropic/claude-sonnet-4.6"
 	case ProviderOllama:
 		return "llama3"
+	case ProviderSiliconFlow:
+		return "deepseek-ai/DeepSeek-V4-Flash"
+	case ProviderGemini:
+		return "gemini-3-flash-preview"
 	default:
 		return "claude-sonnet-4-6"
 	}

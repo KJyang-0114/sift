@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -173,7 +172,7 @@ Generate pytest test cases for the functions above. Output ONLY the Python test 
 
 // generateTests 使用 LLM 為程式碼生成測試用例。
 func (tg *TestGenerator) generateTests(path string, code string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	result, err := tg.client.Chat(ctx, testGenSystemPrompt, fmt.Sprintf(testGenTemplate, path, code))
@@ -205,23 +204,6 @@ func extractCodeBlock(response string) string {
 		return strings.TrimSpace(response[start : start+end])
 	}
 	return strings.TrimSpace(response)
-}
-
-// testGenResult 是 LLM 生成測試的結果結構（備案用）。
-type testGenResult struct {
-	TestCode string `json:"test_code"`
-}
-
-func parseTestGenResult(result string) string {
-	code := extractCodeBlock(result)
-	if code != "" {
-		return code
-	}
-	var tg testGenResult
-	if err := json.Unmarshal([]byte(result), &tg); err == nil && tg.TestCode != "" {
-		return tg.TestCode
-	}
-	return ""
 }
 
 func truncate(s string, maxLen int) string {

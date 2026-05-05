@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/KJyang-0114/sift/internal/config"
 	"github.com/KJyang-0114/sift/internal/scan"
@@ -32,6 +35,19 @@ func newScanCmd() *cobra.Command {
 				target = args[0]
 			}
 
+			// 路徑驗證：拒絕包含 ../ 的路徑（path traversal 防護）
+			if strings.Contains(target, "..") {
+				return fmt.Errorf("不允許的路徑: %s", target)
+			}
+
+			absTarget, err := filepath.Abs(target)
+			if err != nil {
+				return fmt.Errorf("無法解析路徑: %w", err)
+			}
+			if _, err := os.Stat(absTarget); err != nil {
+				return fmt.Errorf("路徑不存在: %s", absTarget)
+			}
+
 			// 載入設定
 			cfg, _, err := config.Load()
 			if err != nil {
@@ -49,9 +65,13 @@ func newScanCmd() *cobra.Command {
 				cfg.Output.Format = format
 			}
 
+			if diffMode {
+				fmt.Println("  ℹ️  diff 模式：僅掃描變更的檔案")
+			}
+
 			// 建立並執行掃描
 			orch := scan.NewOrchestrator(cfg)
-			if err := orch.Run(target, cfg.Output.Format); err != nil {
+			if err := orch.Run(absTarget, cfg.Output.Format); err != nil {
 				os.Exit(1)
 			}
 

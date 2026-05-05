@@ -86,7 +86,7 @@ func (sa *SemanticAnalyzer) analyzeFile(path string) ([]static.Finding, error) {
 		code = code[:8000] + "\n// ... (truncated)"
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	result, err := sa.client.Chat(ctx, semanticSystemPrompt, fmt.Sprintf(semanticUserTemplate, path, detectLang(path), code))

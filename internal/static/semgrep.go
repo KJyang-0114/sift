@@ -30,10 +30,36 @@ func (s *SemgrepAnalyzer) Name() string {
 	return "semgrep"
 }
 
+// findSemgrep 搜尋 semgrep 二進位檔。
+// 遍歷 PATH 以及常見的 Python bin 目錄。
+func findSemgrep() (string, error) {
+	if path, err := exec.LookPath("semgrep"); err == nil {
+		return path, nil
+	}
+
+	// 搜尋常見 Python 安裝位置
+	searchPaths := []string{
+		os.ExpandEnv("$HOME/Library/Python/3.*/bin"),
+		os.ExpandEnv("$HOME/.local/bin"),
+		"/Library/Frameworks/Python.framework/Versions/3.*/bin",
+		"/usr/local/bin",
+	}
+
+	for _, pattern := range searchPaths {
+		matches, err := filepath.Glob(filepath.Join(pattern, "semgrep"))
+		if err != nil || len(matches) == 0 {
+			continue
+		}
+		return matches[0], nil
+	}
+
+	return "", fmt.Errorf("semgrep not found")
+}
+
 // EnsureInstalled 確認 semgrep 是否可用，若否自動安裝。
-func EnsureInstalled() error {
-	if _, err := exec.LookPath("semgrep"); err == nil {
-		return nil
+func EnsureInstalled() (string, error) {
+	if path, err := findSemgrep(); err == nil {
+		return path, nil
 	}
 
 	fmt.Fprintln(os.Stderr, "  ⚡ semgrep 未安裝，自動安裝中...")
@@ -48,7 +74,9 @@ func EnsureInstalled() error {
 			cmd.Stderr = os.Stderr
 			installErr = cmd.Run()
 			if installErr == nil {
-				return nil
+				if path, err := findSemgrep(); err == nil {
+					return path, nil
+				}
 			}
 		}
 	}
@@ -59,17 +87,20 @@ func EnsureInstalled() error {
 		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err == nil {
-			return nil
+			if path, err := findSemgrep(); err == nil {
+				return path, nil
+			}
 		}
 	}
 
-	return fmt.Errorf("無法自動安裝 semgrep: %w。"+
+	return "", fmt.Errorf("無法自動安裝 semgrep: %w。"+
 		"請手動安裝: pip3 install semgrep 或 brew install semgrep", installErr)
 }
 
 // Analyze 對目標路徑執行 semgrep 掃描並解析結果。
 func (s *SemgrepAnalyzer) Analyze(target string) ([]Finding, error) {
-	if err := EnsureInstalled(); err != nil {
+	semgrepPath, err := EnsureInstalled()
+	if err != nil {
 		return nil, err
 	}
 
@@ -92,7 +123,7 @@ func (s *SemgrepAnalyzer) Analyze(target string) ([]Finding, error) {
 		target,
 	}
 
-	cmd := exec.Command("semgrep", args...)
+	cmd := exec.Command(semgrepPath, args...)
 	cmd.Stderr = os.Stderr
 
 	output, err := cmd.Output()
@@ -114,26 +145,49 @@ func (s *SemgrepAnalyzer) Analyze(target string) ([]Finding, error) {
 	return findings, nil
 }
 
-// writeRules 將內嵌規則寫入暫存目錄供 semgrep 使用。
+// writeRules 將規則寫入暫存目錄供 semgrep 使用。
+// 總是複製到暫存目錄，避免 defer RemoveAll 誤刪原始規則。
 func (s *SemgrepAnalyzer) writeRules() (string, error) {
-	// 如果 configDir 存在（開發模式），直接用
-	if _, err := os.Stat(s.configDir); err == nil {
-		return s.configDir, nil
-	}
-
-	// 使用內嵌規則
 	tmpDir, err := os.MkdirTemp("", "sift-rules-*")
 	if err != nil {
 		return "", err
 	}
 
-	// 走訪所有內嵌規則，寫入暫存目錄
-	for name, content := range embeddedRules {
-		rulePath := filepath.Join(tmpDir, name)
-		if err := os.WriteFile(rulePath, []byte(content), 0o644); err != nil {
+	// 優先使用內嵌規則（prod）
+	if len(embeddedRules) > 0 {
+		for name, content := range embeddedRules {
+			rulePath := filepath.Join(tmpDir, name)
+			if err := os.WriteFile(rulePath, []byte(content), 0o644); err != nil {
+				os.RemoveAll(tmpDir)
+				return "", err
+			}
+		}
+		return tmpDir, nil
+	}
+
+	// 開發模式：從磁碟複製到暫存目錄
+	if _, err := os.Stat(s.configDir); err == nil {
+		entries, err := os.ReadDir(s.configDir)
+		if err != nil {
 			os.RemoveAll(tmpDir)
 			return "", err
 		}
+		for _, e := range entries {
+			if e.IsDir() || filepath.Ext(e.Name()) != ".yaml" {
+				continue
+			}
+			src := filepath.Join(s.configDir, e.Name())
+			dst := filepath.Join(tmpDir, e.Name())
+			content, err := os.ReadFile(src)
+			if err != nil {
+				continue
+			}
+			if err := os.WriteFile(dst, content, 0o644); err != nil {
+				os.RemoveAll(tmpDir)
+				return "", err
+			}
+		}
+		return tmpDir, nil
 	}
 
 	return tmpDir, nil

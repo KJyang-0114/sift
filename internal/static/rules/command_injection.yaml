@@ -14,23 +14,18 @@ rules:
       - php
     patterns:
       - pattern-either:
-          # Python
           - pattern: os.system($CMD)
           - pattern: os.popen($CMD)
           - pattern: subprocess.call($CMD, shell=True)
           - pattern: subprocess.Popen($CMD, shell=True)
-          # JavaScript / TypeScript
           - pattern: exec($CMD)
           - pattern: child_process.exec($CMD)
           - pattern: child_process.execSync($CMD)
-          # Go
           - pattern: exec.Command("bash", "-c", $CMD)
           - pattern: exec.Command("sh", "-c", $CMD)
-          # PHP
           - pattern: exec($CMD)
           - pattern: system($CMD)
           - pattern: shell_exec($CMD)
-          # Ruby
           - pattern: |
               `$CMD`
           - pattern: system($CMD)

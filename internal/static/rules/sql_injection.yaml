@@ -12,7 +12,6 @@ rules:
       - java
     patterns:
       - pattern-either:
-          # Python
           - pattern: |
               cursor.execute("..." + $VAR)
           - pattern: |
@@ -21,19 +20,16 @@ rules:
               $QUERY = "..." + $VAR
               ...
               cursor.execute($QUERY)
-          # JavaScript / TypeScript
           - pattern: |
               connection.query("SELECT ... " + $VAR)
           - pattern: |
               db.query(`SELECT ... ${$VAR}`)
           - pattern: |
               db.execute("SELECT ... " + $INPUT)
-          # Go
           - pattern: |
               db.Query("SELECT ... " + $VAR)
           - pattern: |
               fmt.Sprintf("SELECT ... %s", $VAR)
-          # Java
           - pattern: |
               statement.executeQuery("SELECT ... " + $VAR)
     metadata:

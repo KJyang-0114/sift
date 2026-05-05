@@ -45,8 +45,12 @@ func NewClient(cfg *config.LLMConfig) (Client, error) {
 		return NewOpenRouterClient(cfg.APIKey, cfg.Model)
 	case config.ProviderOllama:
 		return NewOllamaClient(cfg.Model)
+	case config.ProviderSiliconFlow:
+		return NewSiliconFlowClient(cfg.APIKey, cfg.Model)
+	case config.ProviderGemini:
+		return NewGeminiClient(cfg.APIKey, cfg.Model)
 	case config.ProviderOffline:
-		return nil, nil
+		return nil, fmt.Errorf("LLM 未設定 (離線模式)")
 	default:
 		return nil, fmt.Errorf("不支援的 LLM provider: %s", cfg.Provider)
 	}

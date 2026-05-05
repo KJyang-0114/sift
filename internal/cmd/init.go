@@ -72,10 +72,12 @@ func runWizard(cfg *config.Config) {
 	// Q1: Provider
 	fmt.Println("  請選擇 LLM Provider:")
 	fmt.Println("    [1] Anthropic (Claude)")
-	fmt.Println("    [2] OpenAI (GPT-4o)")
-	fmt.Println("    [3] OpenRouter (多模型)")
-	fmt.Println("    [4] Ollama (本機, 免費)")
-	fmt.Println("    [5] 稍後設定 (離線模式, 僅 Semgrep)")
+	fmt.Println("    [2] OpenAI (GPT-4o/GPT-5)")
+	fmt.Println("    [3] Google Gemini")
+	fmt.Println("    [4] OpenRouter (多模型)")
+	fmt.Println("    [5] SiliconFlow (DeepSeek 等)")
+	fmt.Println("    [6] Ollama (本機, 免費)")
+	fmt.Println("    [7] 稍後設定 (離線模式, 僅 Semgrep)")
 	fmt.Println()
 	fmt.Print("  > ")
 
@@ -88,14 +90,17 @@ func runWizard(cfg *config.Config) {
 	case "2":
 		cfg.LLM.Provider = config.ProviderOpenAI
 	case "3":
-		cfg.LLM.Provider = config.ProviderOpenRouter
+		cfg.LLM.Provider = config.ProviderGemini
 	case "4":
-		cfg.LLM.Provider = config.ProviderOllama
+		cfg.LLM.Provider = config.ProviderOpenRouter
 	case "5":
+		cfg.LLM.Provider = config.ProviderSiliconFlow
+	case "6":
+		cfg.LLM.Provider = config.ProviderOllama
+	case "7":
 		cfg.LLM.Provider = config.ProviderOffline
 		fmt.Println("\n  ℹ️  離線模式：僅使用 Semgrep 靜態規則掃描。")
-		fmt.Printf("  ✅ 設定已儲存。執行: sift scan .\n")
-		return
+		fmt.Printf("\n  ℹ️  離線模式：僅使用 Semgrep 靜態規則掃描。\n")
 	}
 	fmt.Println()
 
