@@ -15,9 +15,10 @@ import (
 
 // Orchestrator 協調所有分析器，執行全自動掃描流程。
 type Orchestrator struct {
-	cfg        *config.Config
-	analyzers  []static.Analyzer
-	reporters  *report.Engine
+	cfg              *config.Config
+	staticAnalyzers  []static.Analyzer
+	dynamicAnalyzers []static.Analyzer
+	reporters        *report.Engine
 }
 
 // NewOrchestrator 建立掃描協調器。
@@ -27,26 +28,29 @@ func NewOrchestrator(cfg *config.Config) *Orchestrator {
 	semgrep := static.NewSemgrepAnalyzer(rulesDir, time.Duration(cfg.Scan.Timeout)*time.Second)
 	pkgVerifier := agent.NewPackageVerifier()
 
-	analyzers := []static.Analyzer{semgrep, pkgVerifier}
+	staticAnalyzers := []static.Analyzer{semgrep, pkgVerifier}
+	var dynamicAnalyzers []static.Analyzer
 
-	// 如果設定了 LLM，加入語意分析
+	// 如果設定了 LLM，加入語意分析和測試生成
 	if cfg.LLM.Provider != config.ProviderOffline && cfg.LLM.APIKey != "" {
-		semanticAnalyzer, err := agent.NewSemanticAnalyzer(cfg)
-		if err == nil {
-			analyzers = append(analyzers, semanticAnalyzer)
+		if sa, err := agent.NewSemanticAnalyzer(cfg); err == nil {
+			staticAnalyzers = append(staticAnalyzers, sa)
+		}
+		if tg, err := agent.NewTestGenerator(cfg); err == nil {
+			dynamicAnalyzers = append(dynamicAnalyzers, tg)
 		}
 	}
 
 	return &Orchestrator{
-		cfg:       cfg,
-		analyzers: analyzers,
-		reporters: report.NewEngine(cfg),
+		cfg:              cfg,
+		staticAnalyzers:  staticAnalyzers,
+		dynamicAnalyzers: dynamicAnalyzers,
+		reporters:        report.NewEngine(cfg),
 	}
 }
 
 // Run 執行完整掃描流程。
 func (o *Orchestrator) Run(target string, format string) error {
-	// 解析目標路徑
 	target = absTarget(target)
 
 	fmt.Printf("  🔍 Sift 掃描中: %s\n\n", target)
@@ -54,9 +58,9 @@ func (o *Orchestrator) Run(target string, format string) error {
 	start := time.Now()
 	var allFindings []static.Finding
 
-	// Phase 1: 靜態分析（並行執行）
+	// Phase 1: 靜態分析（Semgrep + 套件驗證 + LLM 語意分析）
 	fmt.Println("  ── Phase 1: 靜態分析 ──")
-	results := o.runAnalyzers(target)
+	results := o.runAnalyzers(o.staticAnalyzers, target)
 	for _, r := range results {
 		if r.Error != nil {
 			fmt.Fprintf(os.Stderr, "  ⚠️  %s: %v\n", r.Analyzer, r.Error)
@@ -64,6 +68,21 @@ func (o *Orchestrator) Run(target string, format string) error {
 		}
 		fmt.Printf("  ✅ %s: %d 個問題\n", r.Analyzer, len(r.Findings))
 		allFindings = append(allFindings, r.Findings...)
+	}
+
+	// Phase 2: 動態測試（沙盒執行，僅在有 LLM 時啟用）
+	if len(o.dynamicAnalyzers) > 0 {
+		fmt.Println()
+		fmt.Println("  ── Phase 2: 動態測試 ──")
+		dynResults := o.runAnalyzers(o.dynamicAnalyzers, target)
+		for _, r := range dynResults {
+			if r.Error != nil {
+				fmt.Fprintf(os.Stderr, "  ⚠️  %s: %v\n", r.Analyzer, r.Error)
+				continue
+			}
+			fmt.Printf("  ✅ %s: %d 個問題\n", r.Analyzer, len(r.Findings))
+			allFindings = append(allFindings, r.Findings...)
+		}
 	}
 
 	fmt.Println()
@@ -75,11 +94,11 @@ func (o *Orchestrator) Run(target string, format string) error {
 }
 
 // runAnalyzers 並行執行所有分析器。
-func (o *Orchestrator) runAnalyzers(target string) []static.Result {
+func (o *Orchestrator) runAnalyzers(analyzers []static.Analyzer, target string) []static.Result {
 	var wg sync.WaitGroup
-	results := make([]static.Result, len(o.analyzers))
+	results := make([]static.Result, len(analyzers))
 
-	for i, a := range o.analyzers {
+	for i, a := range analyzers {
 		wg.Add(1)
 		go func(idx int, analyzer static.Analyzer) {
 			defer wg.Done()
