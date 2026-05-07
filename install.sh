@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Sift — 全自動 AI 程式碼安全掃描工具
-# 一行安裝腳本: curl -fsSL https://get.sift.dev | bash
+# 一行安裝腳本: curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh | bash
 
 REPO="KJyang-0114/sift"
 BIN_NAME="sift"

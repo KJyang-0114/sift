@@ -251,10 +251,13 @@ func parseSemgrepOutput(output []byte) ([]Finding, error) {
 	for _, r := range result.Results {
 		severity := mapSemgrepSeverity(r.Extra.Severity)
 
-		// 提取第一行程式碼
 		code := strings.TrimSpace(r.Extra.Lines)
 		if idx := strings.Index(code, "\n"); idx != -1 {
 			code = code[:idx]
+		}
+		// Semgrep OSS 不返回程式碼時，自行讀取源碼
+		if code == "" || code == "requires login" {
+			code = readLineFromFile(r.Path, r.Start.Line)
 		}
 
 		findings = append(findings, Finding{
@@ -273,6 +276,18 @@ func parseSemgrepOutput(output []byte) ([]Finding, error) {
 	}
 
 	return findings, nil
+}
+
+func readLineFromFile(path string, lineNum int) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(string(data), "\n")
+	if lineNum > 0 && lineNum <= len(lines) {
+		return strings.TrimSpace(lines[lineNum-1])
+	}
+	return ""
 }
 
 func mapSemgrepSeverity(s string) Severity {

@@ -16,6 +16,7 @@ const (
 	ProviderOllama      LLMProvider = "ollama"
 	ProviderSiliconFlow LLMProvider = "siliconflow"
 	ProviderGemini      LLMProvider = "gemini"
+	ProviderDeepSeek    LLMProvider = "deepseek"
 	ProviderOffline     LLMProvider = "offline"
 )
 
@@ -80,6 +81,8 @@ func (l *LLMConfig) DefaultModel() string {
 		return "deepseek-ai/DeepSeek-V4-Flash"
 	case ProviderGemini:
 		return "gemini-3-flash-preview"
+	case ProviderDeepSeek:
+		return "deepseek-chat"
 	default:
 		return "claude-sonnet-4-6"
 	}

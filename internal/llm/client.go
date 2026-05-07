@@ -49,6 +49,8 @@ func NewClient(cfg *config.LLMConfig) (Client, error) {
 		return NewSiliconFlowClient(cfg.APIKey, cfg.Model)
 	case config.ProviderGemini:
 		return NewGeminiClient(cfg.APIKey, cfg.Model)
+	case config.ProviderDeepSeek:
+		return NewDeepSeekClient(cfg.APIKey, cfg.Model)
 	case config.ProviderOffline:
 		return nil, fmt.Errorf("LLM 未設定 (離線模式)")
 	default:
