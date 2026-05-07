@@ -113,13 +113,20 @@ func (s *SemgrepAnalyzer) Analyze(target string) ([]Finding, error) {
 
 	start := time.Now()
 
-	// 執行 semgrep
+	// 執行 semgrep（排除第三方依賴目錄以減少噪音）
 	args := []string{
 		"scan",
 		"--config", ruleDir,
 		"--json",
 		"--no-git-ignore",
-		"--verbose",
+		"--exclude", "venv",
+		"--exclude", ".venv",
+		"--exclude", "node_modules",
+		"--exclude", "site-packages",
+		"--exclude", "__pycache__",
+		"--exclude", "dist",
+		"--exclude", "target",
+		"--exclude", ".git",
 		target,
 	}
 
