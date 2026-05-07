@@ -57,7 +57,7 @@ func Default() *Config {
 		Scan: ScanConfig{
 			Timeout:     120,
 			Concurrency: 4,
-			Sandbox:     "orbital",
+			Sandbox:     "orbital", // 唯一支援的沙盒模式
 		},
 		Output: OutputConfig{
 			Format: "terminal",

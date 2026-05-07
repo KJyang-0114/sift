@@ -14,3 +14,8 @@ Thumbs.db
 
 # Config (local only)
 .sift/
+
+# Playwright browser artifacts
+.playwright-mcp/
+repo-snapshot.md
+sift-github-repo.png

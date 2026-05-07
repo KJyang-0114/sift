@@ -65,12 +65,10 @@ func newScanCmd() *cobra.Command {
 				cfg.Output.Format = format
 			}
 
-			if diffMode {
-				fmt.Println("  ℹ️  diff 模式：僅掃描變更的檔案")
-			}
-
-			// 建立並執行掃描
 			orch := scan.NewOrchestrator(cfg)
+			if diffMode {
+				orch.SetDiffMode(true)
+			}
 			if err := orch.Run(absTarget, cfg.Output.Format); err != nil {
 				os.Exit(1)
 			}
@@ -80,7 +78,7 @@ func newScanCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&format, "format", "f", "terminal", "輸出格式 (terminal|json|sarif|llm)")
-	cmd.Flags().StringVar(&sandbox, "sandbox", "orbital", "沙盒模式 (orbital|docker|firecracker)")
+	cmd.Flags().StringVar(&sandbox, "sandbox", "orbital", "沙盒模式 (orbital)")
 	cmd.Flags().IntVarP(&timeout, "timeout", "t", 120, "單檔最大掃描秒數")
 	cmd.Flags().BoolVar(&diffMode, "diff", false, "只掃描變更的檔案 (git diff)")
 

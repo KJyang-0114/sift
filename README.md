@@ -153,7 +153,7 @@ model = "claude-sonnet-4-6"
 [scan]
 timeout = 120
 concurrency = 4
-sandbox = "orbital"           # orbital | docker | firecracker
+sandbox = "orbital"           # orbital
 
 [output]
 format = "terminal"           # terminal | json | sarif | llm

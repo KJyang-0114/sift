@@ -3,7 +3,9 @@ package scan
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +27,12 @@ type Orchestrator struct {
 	fileCache        *cache.FileCache
 	dbStore          *store.Store
 	pool             *WorkerPool
+	diffMode         bool
+}
+
+// SetDiffMode 啟用 diff 模式，僅掃描 git 變更的檔案。
+func (o *Orchestrator) SetDiffMode(enabled bool) {
+	o.diffMode = enabled
 }
 
 // NewOrchestrator 建立掃描協調器。
@@ -71,8 +79,24 @@ func NewOrchestrator(cfg *config.Config) *Orchestrator {
 func (o *Orchestrator) Run(target string, format string) error {
 	target = absTarget(target)
 
-	// JSON/SARIF 輸出時不印進度訊息，以免汙染 stdout
 	verbose := format != "json" && format != "sarif"
+
+	// diff 模式：僅掃描 git 變更檔案
+	if o.diffMode {
+		changed, err := gitChangedFiles(target)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "  ⚠️  無法取得 git diff: %v\n", err)
+		} else if len(changed) == 0 {
+			if verbose {
+				fmt.Println("  ✅ 沒有變更的檔案需要掃描")
+			}
+			return nil
+		} else {
+			if verbose {
+				fmt.Printf("  📋 diff 模式：%d 個變更檔案\n", len(changed))
+			}
+		}
+	}
 
 	if verbose {
 		fmt.Printf("  🔍 Sift 掃描中: %s\n\n", target)
@@ -163,7 +187,6 @@ func (o *Orchestrator) runAnalyzers(analyzers []static.Analyzer, target string) 
 
 // findRulesDir 找到規則目錄。
 func findRulesDir() string {
-	// 從專案目錄找
 	if cwd, err := os.Getwd(); err == nil {
 		dir := filepath.Join(cwd, "internal", "static", "rules")
 		if _, err := os.Stat(dir); err == nil {
@@ -176,6 +199,28 @@ func findRulesDir() string {
 // LastFindings 回傳最近一次掃描的所有 findings。
 func (o *Orchestrator) LastFindings() []static.Finding {
 	return o.lastFindings
+}
+
+// gitChangedFiles 回傳 git 工作區中變更的檔案列表。
+func gitChangedFiles(repoPath string) ([]string, error) {
+	cmd := exec.Command("git", "-C", repoPath, "diff", "--name-only", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		// 嘗試 diff staged
+		cmd = exec.Command("git", "-C", repoPath, "diff", "--name-only", "--staged")
+		out, err = cmd.Output()
+		if err != nil {
+			return nil, err
+		}
+	}
+	var files []string
+	for _, f := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		f = strings.TrimSpace(f)
+		if f != "" {
+			files = append(files, filepath.Join(repoPath, f))
+		}
+	}
+	return files, nil
 }
 
 func absTarget(target string) string {
