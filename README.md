@@ -72,7 +72,7 @@ sift scan .
 sift scan src/main.go
 
 # Scan only changed files
-sift scan --diff HEAD~1
+sift scan --diff
 ```
 
 ### Output Formats

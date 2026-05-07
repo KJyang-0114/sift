@@ -72,7 +72,7 @@ sift scan .
 sift scan src/main.go
 
 # 只掃描變更的檔案
-sift scan --diff HEAD~1
+sift scan --diff
 ```
 
 ### 輸出格式

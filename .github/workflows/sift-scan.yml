@@ -1,11 +1,4 @@
 name: Sift Security Scan
-
-# Sift 全自動程式碼安全掃描 GitHub Action
-# 使用方式：複製此檔案到你的 .github/workflows/ 目錄
-#
-# 需要設定 Secrets:
-#   SIFT_LLM_API_KEY  — 你的 LLM API Key (可選，無 LLM 時只跑 Semgrep)
-
 on:
   pull_request:
     branches: [main, master]
@@ -17,56 +10,37 @@ jobs:
   sift-scan:
     name: Sift Code Security Scan
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
-      pull-requests: write
+      security-events: write
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Sift
-        run: |
-          SIFT_VERSION=$(curl -s https://api.github.com/repos/KJyang-0114/sift/releases/latest | jq -r .tag_name)
-          if [ -z "$SIFT_VERSION" ] || [ "$SIFT_VERSION" = "null" ]; then
-            echo "No release found, installing from source..."
-            git clone https://github.com/KJyang-0114/sift.git /tmp/sift
-            cd /tmp/sift && go build -o /usr/local/bin/sift ./cmd/sift/
-          else
-            OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-            ARCH=$(uname -m)
-            case "$ARCH" in
-              x86_64) ARCH="amd64" ;;
-              aarch64|arm64) ARCH="arm64" ;;
-            esac
-            curl -fsSL "https://github.com/KJyang-0114/sift/releases/download/${SIFT_VERSION}/sift_${OS}_${ARCH}.tar.gz" \
-              | sudo tar -xz -C /usr/local/bin sift
-          fi
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
 
-      - name: Run Sift Scan
+      - name: Install Python (for semgrep)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install semgrep
+        run: pip3 install semgrep
+
+      - name: Build and run Sift
         env:
-          SIFT_LLM_PROVIDER: ${{ secrets.SIFT_LLM_PROVIDER || 'offline' }}
-          SIFT_LLM_API_KEY: ${{ secrets.SIFT_LLM_API_KEY || '' }}
-          SIFT_LLM_MODEL: ${{ secrets.SIFT_LLM_MODEL || 'claude-sonnet-4-6' }}
+          SIFT_LLM_PROVIDER: offline
         run: |
-          sift scan . --format sarif > sift-results.sarif
-          sift scan . --format terminal
+          go build -o sift ./cmd/sift/
+          ./sift scan . --format terminal
+          ./sift scan . --format sarif > sift-results.sarif
+          echo "Scan complete, findings saved to sift-results.sarif"
 
-      - name: Upload SARIF Results
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
+      - name: Upload SARIF to GitHub
+        if: success()
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: sift-results.sarif
           category: sift
-
-      - name: Comment PR with Results
-        if: github.event_name == 'pull_request' && always()
-        run: |
-          sift scan . --format llm > sift-llm-report.md
-          echo '## 🔍 Sift Security Scan Results' > pr-comment.md
-          echo '' >> pr-comment.md
-          cat sift-llm-report.md >> pr-comment.md
-          gh pr comment ${{ github.event.pull_request.number }} --body-file pr-comment.md || true
-        env:
-          GH_TOKEN: ${{ github.token }}
