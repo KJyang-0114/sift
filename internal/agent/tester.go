@@ -14,21 +14,21 @@ import (
 	"github.com/KJyang-0114/sift/internal/static"
 )
 
-// TestGenerator 自動生成測試用例並在沙盒中執行。
+// TestGenerator automatically generates test cases and runs them in a sandbox.
 type TestGenerator struct {
 	client  llm.Client
 	sandbox *sandbox.Orbital
 	cfg     *config.Config
 }
 
-// NewTestGenerator 建立測試生成器。
+// NewTestGenerator creates a test generator.
 func NewTestGenerator(cfg *config.Config) (*TestGenerator, error) {
 	client, err := llm.NewClient(&cfg.LLM)
 	if err != nil {
 		return nil, err
 	}
 	if client == nil {
-		return nil, fmt.Errorf("LLM 未設定")
+		return nil, fmt.Errorf("LLM not configured")
 	}
 
 	return &TestGenerator{
@@ -38,14 +38,14 @@ func NewTestGenerator(cfg *config.Config) (*TestGenerator, error) {
 	}, nil
 }
 
-// Name 回傳分析器名稱。
+// Name returns the analyzer name.
 func (tg *TestGenerator) Name() string {
 	return "test-generator"
 }
 
-// Analyze 對目標程式碼生成並執行測試。
+// Analyze generates and runs tests against target code.
 func (tg *TestGenerator) Analyze(target string) ([]static.Finding, error) {
-	// 只處理 Python 檔案（MVP 階段優先支援）
+	// Only process Python files (priority support during MVP phase)
 	files, err := tg.collectPythonFiles(target, 10)
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func (tg *TestGenerator) Analyze(target string) ([]static.Finding, error) {
 	for _, file := range files {
 		findings, err := tg.testFile(file)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "  ⚠️  測試生成 %s 失敗: %v\n", file, err)
+			fmt.Fprintf(os.Stderr, "  ⚠️  Test generation for %s failed: %v\n", file, err)
 			continue
 		}
 		allFindings = append(allFindings, findings...)
@@ -64,7 +64,7 @@ func (tg *TestGenerator) Analyze(target string) ([]static.Finding, error) {
 	return allFindings, nil
 }
 
-// testFile 對單一檔案生成測試並執行。
+// testFile generates and runs tests for a single file.
 func (tg *TestGenerator) testFile(path string) ([]static.Finding, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -76,25 +76,25 @@ func (tg *TestGenerator) testFile(path string) ([]static.Finding, error) {
 		code = code[:6000]
 	}
 
-	// Step 1: 用 LLM 生成測試用例
+	// Step 1: Use LLM to generate test cases
 	testCode, err := tg.generateTests(path, code)
 	if err != nil || testCode == "" {
 		return nil, err
 	}
 
-	// Step 2: 在沙盒中執行
+	// Step 2: Execute in sandbox
 	result, err := tg.sandbox.Run(testCode, "python")
 	if err != nil {
 		return nil, err
 	}
 
-	// Step 3: 分析結果
+	// Step 3: Analyze results
 	var findings []static.Finding
 	if result.TimedOut {
 		findings = append(findings, static.Finding{
 			ID:       "sift.test-timeout",
 			Rule:     "sift.test-timeout",
-			Message:  fmt.Sprintf("[動態測試] 測試執行超時，可能存在無限迴圈或效能問題。%s", result.Error),
+			Message:  fmt.Sprintf("[Dynamic Test] Test execution timed out — possible infinite loop or performance issue. %s", result.Error),
 			Severity: static.SeverityHigh,
 			Category: "logic",
 			File:     path,
@@ -105,7 +105,7 @@ func (tg *TestGenerator) testFile(path string) ([]static.Finding, error) {
 		findings = append(findings, static.Finding{
 			ID:       "sift.test-failure",
 			Rule:     "sift.test-failure",
-			Message:  fmt.Sprintf("[動態測試] 自動生成的測試用例執行失敗 (exit: %d)。%s\n  Stderr: %s", result.ExitCode, result.Error, truncate(result.Stderr, 200)),
+			Message:  fmt.Sprintf("[Dynamic Test] Auto-generated test case execution failed (exit: %d). %s\n  Stderr: %s", result.ExitCode, result.Error, truncate(result.Stderr, 200)),
 			Severity: static.SeverityHigh,
 			Category: "logic",
 			File:     path,
@@ -115,7 +115,7 @@ func (tg *TestGenerator) testFile(path string) ([]static.Finding, error) {
 	return findings, nil
 }
 
-// collectPythonFiles 收集 Python 檔案。
+// collectPythonFiles collects Python files.
 func (tg *TestGenerator) collectPythonFiles(target string, maxFiles int) ([]string, error) {
 	var files []string
 
@@ -170,7 +170,7 @@ const testGenTemplate = `File: %s
 
 Generate pytest test cases for the functions above. Output ONLY the Python test code.`
 
-// generateTests 使用 LLM 為程式碼生成測試用例。
+// generateTests uses LLM to generate test cases for the given code.
 func (tg *TestGenerator) generateTests(path string, code string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -180,11 +180,11 @@ func (tg *TestGenerator) generateTests(path string, code string) (string, error)
 		return "", err
 	}
 
-	// 提取程式碼區塊
+	// Extract code block
 	return extractCodeBlock(result), nil
 }
 
-// extractCodeBlock 從 LLM 回應中提取 ```python ... ``` 區塊。
+// extractCodeBlock extracts the ```python ... ``` block from the LLM response.
 func extractCodeBlock(response string) string {
 	markers := []string{"```python", "```py", "```"}
 	for _, marker := range markers {
@@ -193,7 +193,7 @@ func extractCodeBlock(response string) string {
 			continue
 		}
 		start += len(marker)
-		// 跳到下一行
+		// Skip to next line
 		if nl := strings.Index(response[start:], "\n"); nl != -1 {
 			start += nl + 1
 		}

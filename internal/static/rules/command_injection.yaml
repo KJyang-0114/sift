@@ -1,8 +1,8 @@
 rules:
   - id: sift.command-injection-shell
     message: |
-      [Command Injection] 偵測到 Shell 命令執行。
-      請避免 shell=True，改用參數陣列或嚴格驗證輸入。
+      [Command Injection] Shell command execution detected.
+      Avoid shell=True; use argument arrays or strictly validate input.
     severity: ERROR
     languages:
       - python

@@ -10,14 +10,14 @@ import (
 	"time"
 )
 
-// SemgrepAnalyzer 使用 semgrep CLI 執行靜態分析。
+// SemgrepAnalyzer uses the semgrep CLI to perform static analysis.
 type SemgrepAnalyzer struct {
 	configDir string
 	timeout   time.Duration
 }
 
-// NewSemgrepAnalyzer 建立新的 Semgrep 分析器。
-// configDir 是包含自定義規則的目錄。
+// NewSemgrepAnalyzer creates a new Semgrep analyzer.
+// configDir is the directory containing custom rules.
 func NewSemgrepAnalyzer(configDir string, timeout time.Duration) *SemgrepAnalyzer {
 	return &SemgrepAnalyzer{
 		configDir: configDir,
@@ -25,19 +25,19 @@ func NewSemgrepAnalyzer(configDir string, timeout time.Duration) *SemgrepAnalyze
 	}
 }
 
-// Name 回傳分析器名稱。
+// Name returns the analyzer name.
 func (s *SemgrepAnalyzer) Name() string {
 	return "semgrep"
 }
 
-// findSemgrep 搜尋 semgrep 二進位檔。
-// 遍歷 PATH 以及常見的 Python bin 目錄。
+// findSemgrep searches for the semgrep binary.
+// Searches PATH and common Python bin directories.
 func findSemgrep() (string, error) {
 	if path, err := exec.LookPath("semgrep"); err == nil {
 		return path, nil
 	}
 
-	// 搜尋常見 Python 安裝位置
+	// Search common Python installation locations
 	searchPaths := []string{
 		os.ExpandEnv("$HOME/Library/Python/3.*/bin"),
 		os.ExpandEnv("$HOME/.local/bin"),
@@ -56,15 +56,15 @@ func findSemgrep() (string, error) {
 	return "", fmt.Errorf("semgrep not found")
 }
 
-// EnsureInstalled 確認 semgrep 是否可用，若否自動安裝。
+// EnsureInstalled checks if semgrep is available, and auto-installs if not.
 func EnsureInstalled() (string, error) {
 	if path, err := findSemgrep(); err == nil {
 		return path, nil
 	}
 
-	fmt.Fprintln(os.Stderr, "  ⚡ semgrep 未安裝，自動安裝中...")
+	fmt.Fprintln(os.Stderr, "  ⚡ semgrep not installed, auto-installing...")
 
-	// 嘗試 pip 安裝
+	// Try pip install
 	pipCmds := []string{"pip3", "pip"}
 	var installErr error
 	for _, pip := range pipCmds {
@@ -81,7 +81,7 @@ func EnsureInstalled() (string, error) {
 		}
 	}
 
-	// 嘗試 brew（macOS）
+	// Try brew (macOS)
 	if _, err := exec.LookPath("brew"); err == nil {
 		cmd := exec.Command("brew", "install", "semgrep")
 		cmd.Stdout = os.Stderr
@@ -93,27 +93,27 @@ func EnsureInstalled() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("無法自動安裝 semgrep: %w。"+
-		"請手動安裝: pip3 install semgrep 或 brew install semgrep", installErr)
+	return "", fmt.Errorf("unable to auto-install semgrep: %w. "+
+		"Please install manually: pip3 install semgrep or brew install semgrep", installErr)
 }
 
-// Analyze 對目標路徑執行 semgrep 掃描並解析結果。
+// Analyze runs semgrep scan on the target path and parses the results.
 func (s *SemgrepAnalyzer) Analyze(target string) ([]Finding, error) {
 	semgrepPath, err := EnsureInstalled()
 	if err != nil {
 		return nil, err
 	}
 
-	// 寫入暫存規則目錄
+	// Write rules to temp directory
 	ruleDir, err := s.writeRules()
 	if err != nil {
-		return nil, fmt.Errorf("寫入規則失敗: %w", err)
+		return nil, fmt.Errorf("failed to write rules: %w", err)
 	}
 	defer os.RemoveAll(ruleDir)
 
 	start := time.Now()
 
-	// 執行 semgrep（排除第三方依賴目錄以減少噪音）
+	// Execute semgrep (exclude third-party dependency directories to reduce noise)
 	args := []string{
 		"scan",
 		"--config", ruleDir,
@@ -135,16 +135,16 @@ func (s *SemgrepAnalyzer) Analyze(target string) ([]Finding, error) {
 
 	output, err := cmd.Output()
 	if err != nil {
-		// semgrep 找到問題時會返回非零，但仍然輸出 JSON
+		// semgrep returns non-zero when issues are found, but still outputs JSON
 		if output == nil {
-			return nil, fmt.Errorf("semgrep 執行失敗: %w", err)
+			return nil, fmt.Errorf("semgrep execution failed: %w", err)
 		}
 	}
 
-	// 解析 semgrep JSON 輸出
+	// Parse semgrep JSON output
 	findings, err := parseSemgrepOutput(output)
 	if err != nil {
-		return nil, fmt.Errorf("解析 semgrep 輸出失敗: %w", err)
+		return nil, fmt.Errorf("failed to parse semgrep output: %w", err)
 	}
 
 	_ = time.Since(start)
@@ -152,15 +152,15 @@ func (s *SemgrepAnalyzer) Analyze(target string) ([]Finding, error) {
 	return findings, nil
 }
 
-// writeRules 將規則寫入暫存目錄供 semgrep 使用。
-// 總是複製到暫存目錄，避免 defer RemoveAll 誤刪原始規則。
+// writeRules writes rules to a temp directory for semgrep to use.
+// Always copies to a temp directory to avoid defer RemoveAll accidentally deleting original rules.
 func (s *SemgrepAnalyzer) writeRules() (string, error) {
 	tmpDir, err := os.MkdirTemp("", "sift-rules-*")
 	if err != nil {
 		return "", err
 	}
 
-	// 優先使用內嵌規則（prod）
+	// Prefer embedded rules (prod)
 	if len(embeddedRules) > 0 {
 		for name, content := range embeddedRules {
 			rulePath := filepath.Join(tmpDir, name)
@@ -172,7 +172,7 @@ func (s *SemgrepAnalyzer) writeRules() (string, error) {
 		return tmpDir, nil
 	}
 
-	// 開發模式：從磁碟複製到暫存目錄
+	// Dev mode: copy from disk to temp directory
 	if _, err := os.Stat(s.configDir); err == nil {
 		entries, err := os.ReadDir(s.configDir)
 		if err != nil {
@@ -200,10 +200,10 @@ func (s *SemgrepAnalyzer) writeRules() (string, error) {
 	return tmpDir, nil
 }
 
-// embeddedRules 內嵌的 Semgrep 規則（由 rules.go 的 embed 提供）。
+// embeddedRules stores embedded Semgrep rules (provided by rules.go embed).
 var embeddedRules map[string]string
 
-// semgrepResult 是 semgrep JSON 輸出的結構。
+// semgrepResult is the structure of semgrep JSON output.
 type semgrepResult struct {
 	Results []semgrepFinding `json:"results"`
 	Errors  []semgrepError   `json:"errors"`
@@ -255,7 +255,7 @@ func parseSemgrepOutput(output []byte) ([]Finding, error) {
 		if idx := strings.Index(code, "\n"); idx != -1 {
 			code = code[:idx]
 		}
-		// Semgrep OSS 不返回程式碼時，自行讀取源碼
+		// When Semgrep OSS does not return code, read it from source
 		if code == "" || code == "requires login" {
 			code = readLineFromFile(r.Path, r.Start.Line)
 		}

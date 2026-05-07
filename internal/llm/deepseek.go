@@ -19,7 +19,7 @@ type DeepSeekClient struct {
 
 func NewDeepSeekClient(apiKey, model string) (*DeepSeekClient, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("DeepSeek API key 未設定。請執行 sift init 或設定 SIFT_LLM_API_KEY 環境變數")
+		return nil, fmt.Errorf("DeepSeek API key not set. Run sift init or set the SIFT_LLM_API_KEY environment variable")
 	}
 	if model == "" {
 		model = "deepseek-chat"
@@ -67,35 +67,35 @@ func (c *DeepSeekClient) Chat(ctx context.Context, systemPrompt, userMessage str
 		Temperature: 0.1,
 	})
 	if err != nil {
-		return "", fmt.Errorf("序列化請求失敗: %w", err)
+		return "", fmt.Errorf("failed to serialize request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", deepseekBaseURL, bytes.NewReader(body))
 	if err != nil {
-		return "", fmt.Errorf("建立請求失敗: %w", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 
 	httpResp, err := c.client.Do(httpReq)
 	if err != nil {
-		return "", fmt.Errorf("API 請求失敗: %w", err)
+		return "", fmt.Errorf("API request failed: %w", err)
 	}
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != 200 {
-		return "", fmt.Errorf("API 錯誤 (%d): 請確認 API Key 與模型名稱是否正確", httpResp.StatusCode)
+		return "", fmt.Errorf("API error (%d): please verify your API key and model name are correct", httpResp.StatusCode)
 	}
 
 	var result apiResp
 	if err := json.NewDecoder(httpResp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("解析回應失敗: %w", err)
+		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 	if result.Error != nil {
-		return "", fmt.Errorf("DeepSeek API 錯誤: %s", result.Error.Message)
+		return "", fmt.Errorf("DeepSeek API error: %s", result.Error.Message)
 	}
 	if len(result.Choices) == 0 {
-		return "", fmt.Errorf("DeepSeek 回傳空白回應")
+		return "", fmt.Errorf("DeepSeek returned an empty response")
 	}
 	return result.Choices[0].Message.Content, nil
 }

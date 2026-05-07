@@ -11,7 +11,7 @@ import (
 
 const openaiBaseURL = "https://api.openai.com/v1/chat/completions"
 
-// OpenAIClient 封裝 OpenAI Chat Completions API。
+// OpenAIClient wraps the OpenAI Chat Completions API.
 type OpenAIClient struct {
 	apiKey string
 	model  string
@@ -46,10 +46,10 @@ type openAIResponse struct {
 	} `json:"error,omitempty"`
 }
 
-// NewOpenAIClient 建立 OpenAI API client。
+// NewOpenAIClient creates an OpenAI API client.
 func NewOpenAIClient(apiKey, model string) (*OpenAIClient, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("OpenAI API key 未設定。請執行 sift init 或設定 SIFT_LLM_API_KEY 環境變數")
+		return nil, fmt.Errorf("OpenAI API key not set. Run sift init or set the SIFT_LLM_API_KEY environment variable")
 	}
 	if model == "" {
 		model = "gpt-4o"
@@ -61,12 +61,12 @@ func NewOpenAIClient(apiKey, model string) (*OpenAIClient, error) {
 	}, nil
 }
 
-// Name 回傳 provider 名稱。
+// Name returns the provider name.
 func (c *OpenAIClient) Name() string {
 	return "openai"
 }
 
-// Chat 向 OpenAI API 發送訊息並取得回應。
+// Chat sends a message to the OpenAI API and returns the response.
 func (c *OpenAIClient) Chat(ctx context.Context, systemPrompt, userMessage string) (string, error) {
 	messages := []openAIMessage{
 		{Role: "user", Content: userMessage},
@@ -84,12 +84,12 @@ func (c *OpenAIClient) Chat(ctx context.Context, systemPrompt, userMessage strin
 
 	body, err := json.Marshal(req)
 	if err != nil {
-		return "", fmt.Errorf("序列化請求失敗: %w", err)
+		return "", fmt.Errorf("failed to serialize request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", openaiBaseURL, bytes.NewReader(body))
 	if err != nil {
-		return "", fmt.Errorf("建立請求失敗: %w", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -97,25 +97,25 @@ func (c *OpenAIClient) Chat(ctx context.Context, systemPrompt, userMessage strin
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
-		return "", fmt.Errorf("API 請求失敗: %w", err)
+		return "", fmt.Errorf("API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("API 錯誤 (%d): 請確認 API Key 是否正確", resp.StatusCode)
+		return "", fmt.Errorf("API error (%d): please verify your API key is correct", resp.StatusCode)
 	}
 
 	var result openAIResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("解析回應失敗: %w", err)
+		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if result.Error != nil {
-		return "", fmt.Errorf("OpenAI API 錯誤: %s", result.Error.Message)
+		return "", fmt.Errorf("OpenAI API error: %s", result.Error.Message)
 	}
 
 	if len(result.Choices) == 0 {
-		return "", fmt.Errorf("OpenAI 回傳空白回應")
+		return "", fmt.Errorf("OpenAI returned an empty response")
 	}
 
 	return result.Choices[0].Message.Content, nil

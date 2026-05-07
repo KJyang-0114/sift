@@ -7,7 +7,7 @@ import (
 	"github.com/KJyang-0114/sift/internal/static"
 )
 
-// RenderSARIF 以 SARIF 2.1.0 格式輸出報告（GitHub Code Scanning 相容）。
+// RenderSARIF outputs the report in SARIF 2.1.0 format (GitHub Code Scanning compatible).
 func RenderSARIF(findings []static.Finding, target string) {
 	type physicalLocation struct {
 		ArtifactLocation struct {

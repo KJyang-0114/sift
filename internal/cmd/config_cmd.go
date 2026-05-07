@@ -10,15 +10,15 @@ import (
 func newConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
-		Short: "檢視或修改設定",
-		Long:  `顯示目前設定檔內容與路徑。`,
+		Short: "View or modify configuration",
+		Long:  `Display current config file contents and path.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, path, err := config.Load()
 			if err != nil {
-				return fmt.Errorf("無法載入設定: %w", err)
+				return fmt.Errorf("cannot load config: %w", err)
 			}
 
-			fmt.Printf("設定檔路徑: %s\n", path)
+			fmt.Printf("Config file path: %s\n", path)
 			fmt.Println()
 			fmt.Printf("[llm]\n")
 			fmt.Printf("  provider = %s\n", cfg.LLM.Provider)

@@ -1,8 +1,8 @@
 rules:
   - id: sift.rate-limit-missing
     message: |
-      [公網安全] 未檢測到 Rate Limiting 機制。
-      部署公網請加入 express-rate-limit / django-ratelimit。
+      [Public-Facing Deployment] No rate limiting mechanism detected.
+      Add express-rate-limit / django-ratelimit when deploying to the public internet.
     severity: INFO
     languages:
       - python

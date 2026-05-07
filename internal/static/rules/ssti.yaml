@@ -1,8 +1,8 @@
 rules:
   - id: sift.ssti-server-template-injection
     message: |
-      [SSTI] 使用者輸入傳入模板引擎，可能導致 Server-Side Template Injection。
-      攻擊者可執行任意程式碼。請使用沙盒模式或將輸入視為資料而非模板。
+      [SSTI] User input is passed to a template engine, which may lead to Server-Side Template Injection.
+      Attackers can execute arbitrary code. Use sandbox mode or treat input as data rather than as a template.
     severity: ERROR
     languages:
       - python
@@ -29,8 +29,8 @@ rules:
 
   - id: sift.ssti-format-string
     message: |
-      [Format String Attack] 使用 .format() 或 % 格式化包含使用者輸入的字串。
-      在特定 Python 版本中可能導致資訊洩漏。
+      [Format String Attack] Using .format() or % to format strings containing user input.
+      This may lead to information disclosure in certain Python versions.
     severity: WARNING
     languages:
       - python

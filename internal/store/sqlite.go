@@ -11,37 +11,37 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// Store 提供基於 SQLite 的 findings 持久化儲存。
-// 企業級功能：歷史記錄查詢、趨勢分析、修復追蹤。
+// Store provides SQLite-based persistent storage for findings.
+// Enterprise features: history queries, trend analysis, fix tracking.
 type Store struct {
 	db *sql.DB
 }
 
-// NewStore 建立或開啟 SQLite 資料庫。
+// NewStore creates or opens the SQLite database.
 func NewStore(projectRoot string) (*Store, error) {
 	dbDir := filepath.Join(projectRoot, ".sift")
 	if err := os.MkdirAll(dbDir, 0o700); err != nil {
-		return nil, fmt.Errorf("建立資料庫目錄失敗: %w", err)
+		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
 	dbPath := filepath.Join(dbDir, "findings.db")
 	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_busy_timeout=5000")
 	if err != nil {
-		return nil, fmt.Errorf("開啟資料庫失敗: %w", err)
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	db.SetMaxOpenConns(1) // SQLite 單寫入者
+	db.SetMaxOpenConns(1) // SQLite single writer
 	db.SetConnMaxLifetime(0)
 
 	s := &Store{db: db}
 	if err := s.migrate(); err != nil {
-		return nil, fmt.Errorf("資料庫遷移失敗: %w", err)
+		return nil, fmt.Errorf("database migration failed: %w", err)
 	}
 
 	return s, nil
 }
 
-// migrate 建立必要的資料表。
+// migrate creates the necessary tables.
 func (s *Store) migrate() error {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS scans (
@@ -78,13 +78,13 @@ func (s *Store) migrate() error {
 
 	for _, q := range queries {
 		if _, err := s.db.Exec(q); err != nil {
-			return fmt.Errorf("遷移失敗 (%s): %w", q[:30], err)
+			return fmt.Errorf("migration failed (%s): %w", q[:30], err)
 		}
 	}
 	return nil
 }
 
-// SaveScan 儲存一次掃描及其所有 findings。
+// SaveScan saves a scan and all its findings.
 func (s *Store) SaveScan(target string, duration time.Duration, findings []static.Finding, filesScanned int) (int64, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -92,19 +92,19 @@ func (s *Store) SaveScan(target string, duration time.Duration, findings []stati
 	}
 	defer tx.Rollback()
 
-	// 建立掃描記錄
+	// Create scan record
 	result, err := tx.Exec(
 		`INSERT INTO scans (target, started_at, duration_ms, total_findings, files_scanned)
 		 VALUES (?, datetime('now'), ?, ?, ?)`,
 		target, duration.Milliseconds(), len(findings), filesScanned,
 	)
 	if err != nil {
-		return 0, fmt.Errorf("儲存掃描記錄失敗: %w", err)
+		return 0, fmt.Errorf("failed to save scan record: %w", err)
 	}
 
 	scanID, _ := result.LastInsertId()
 
-	// 儲存每個 finding
+	// Save each finding
 	stmt, err := tx.Prepare(
 		`INSERT INTO findings (scan_id, rule_id, severity, category, file, line, message, code_snippet, cwe, owasp)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -121,7 +121,7 @@ func (s *Store) SaveScan(target string, duration time.Duration, findings []stati
 		}
 		_, err := stmt.Exec(scanID, f.Rule, string(f.Severity), f.Category, f.File, f.Line, f.Message, code, f.CWE, f.OWASP)
 		if err != nil {
-			return 0, fmt.Errorf("儲存 finding 失敗: %w", err)
+			return 0, fmt.Errorf("failed to save finding: %w", err)
 		}
 	}
 
@@ -132,7 +132,7 @@ func (s *Store) SaveScan(target string, duration time.Duration, findings []stati
 	return scanID, nil
 }
 
-// GetScanFindings 取得特定掃描的所有 findings。
+// GetScanFindings returns all findings for a specific scan.
 func (s *Store) GetScanFindings(scanID int64) ([]static.Finding, error) {
 	rows, err := s.db.Query(
 		`SELECT rule_id, severity, category, file, line, message, code_snippet, cwe, owasp
@@ -146,7 +146,7 @@ func (s *Store) GetScanFindings(scanID int64) ([]static.Finding, error) {
 	return scanFindings(rows)
 }
 
-// GetUnfixedFindings 取得所有未修復的 findings。
+// GetUnfixedFindings returns all unfixed findings.
 func (s *Store) GetUnfixedFindings() ([]static.Finding, error) {
 	rows, err := s.db.Query(
 		`SELECT rule_id, severity, category, file, line, message, code_snippet, cwe, owasp
@@ -160,13 +160,13 @@ func (s *Store) GetUnfixedFindings() ([]static.Finding, error) {
 	return scanFindings(rows)
 }
 
-// MarkFixed 標記 finding 為已修復。
+// MarkFixed marks a finding as fixed.
 func (s *Store) MarkFixed(findingID int64) error {
 	_, err := s.db.Exec(`UPDATE findings SET fixed = 1, fixed_at = datetime('now') WHERE id = ?`, findingID)
 	return err
 }
 
-// Stats 回傳整體統計資訊。
+// Stats returns overall statistics.
 func (s *Store) Stats() (map[string]int, error) {
 	stats := make(map[string]int)
 
@@ -193,7 +193,7 @@ func (s *Store) Stats() (map[string]int, error) {
 	return stats, nil
 }
 
-// RecentScans 取得最近的掃描記錄。
+// RecentScans returns recent scan records.
 func (s *Store) RecentScans(limit int) ([]map[string]interface{}, error) {
 	rows, err := s.db.Query(
 		`SELECT id, target, started_at, duration_ms, total_findings, files_scanned
@@ -223,7 +223,7 @@ func (s *Store) RecentScans(limit int) ([]map[string]interface{}, error) {
 	return results, nil
 }
 
-// Close 關閉資料庫連線。
+// Close closes the database connection.
 func (s *Store) Close() error {
 	return s.db.Close()
 }

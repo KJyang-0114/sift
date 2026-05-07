@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// Severity 定義問題嚴重程度。
+// Severity defines the severity level of an issue.
 type Severity string
 
 const (
@@ -15,7 +15,7 @@ const (
 	SeverityInfo     Severity = "info"
 )
 
-// Finding 代表靜態分析找到的一個問題。
+// Finding represents an issue found by static analysis.
 type Finding struct {
 	ID       string   `json:"id"`
 	Rule     string   `json:"rule"`
@@ -30,13 +30,13 @@ type Finding struct {
 	OWASP    string   `json:"owasp,omitempty"`
 }
 
-// Analyzer 定義靜態分析器的介面。
+// Analyzer defines the interface for a static analyzer.
 type Analyzer interface {
 	Name() string
 	Analyze(target string) ([]Finding, error)
 }
 
-// Result 是一次完整靜態掃描的結果。
+// Result represents the outcome of a complete static scan.
 type Result struct {
 	Analyzer  string        `json:"analyzer"`
 	Target    string        `json:"target"`
@@ -45,7 +45,7 @@ type Result struct {
 	Error     error         `json:"error,omitempty"`
 }
 
-// FilterBySeverity 依嚴重等級過濾 findings。
+// FilterBySeverity filters findings by severity level.
 func FilterBySeverity(findings []Finding, minSeverity Severity) []Finding {
 	weights := map[Severity]int{
 		SeverityCritical: 5,
@@ -65,7 +65,7 @@ func FilterBySeverity(findings []Finding, minSeverity Severity) []Finding {
 	return filtered
 }
 
-// GroupBySeverity 按嚴重等級分組。
+// GroupBySeverity groups findings by severity level.
 func GroupBySeverity(findings []Finding) map[Severity][]Finding {
 	groups := make(map[Severity][]Finding)
 	for _, f := range findings {

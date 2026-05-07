@@ -10,18 +10,18 @@ import (
 	"github.com/KJyang-0114/sift/internal/static"
 )
 
-// BatchAnalyzer 將多個檔案批次送給 LLM 分析，大幅減少 API 呼叫次數。
-// 企業級功能：對 1000+ 檔案的大型專案，用批次模式將 API 呼叫減少 10-20 倍。
+// BatchAnalyzer sends multiple files to the LLM in batches, dramatically reducing API calls.
+// Enterprise feature: For large projects with 1000+ files, batch mode reduces API calls by 10-20x.
 type BatchAnalyzer struct {
 	client   llm.Client
 	batchSize int
 	timeout   time.Duration
 }
 
-// NewBatchAnalyzer 建立批次分析器。
+// NewBatchAnalyzer creates a batch analyzer.
 func NewBatchAnalyzer(client llm.Client, batchSize int, timeout time.Duration) *BatchAnalyzer {
 	if batchSize <= 0 {
-		batchSize = 5 // 預設每批 5 個檔案
+		batchSize = 5 // Default: 5 files per batch
 	}
 	return &BatchAnalyzer{
 		client:    client,
@@ -39,17 +39,17 @@ Output format (one per line, JSON objects):
 
 If no issues found in a file, skip it. Focus on REAL vulnerabilities, not style issues.`
 
-// AnalyzeBatch 批次分析多個檔案。
+// AnalyzeBatch performs batch analysis on multiple files.
 func (ba *BatchAnalyzer) AnalyzeBatch(files map[string]string) ([]static.Finding, error) {
 	if len(files) == 0 {
 		return nil, nil
 	}
 
-	// 建立批次請求
+	// Build batch request
 	var sb strings.Builder
 	sb.WriteString("Analyze the following files for vulnerabilities:\n\n")
 	for path, content := range files {
-		// 截斷過大的檔案
+		// Truncate oversized files
 		code := content
 		if len(code) > 3000 {
 			code = code[:3000] + "\n// ... (truncated for analysis)"
@@ -68,7 +68,7 @@ func (ba *BatchAnalyzer) AnalyzeBatch(files map[string]string) ([]static.Finding
 	return parseBatchResults(result), nil
 }
 
-// batchIssue LLM 批次回傳的單一問題結構。
+// batchIssue represents a single issue returned by the LLM batch.
 type batchIssue struct {
 	File     string `json:"file"`
 	Line     int    `json:"line"`
@@ -80,7 +80,7 @@ type batchIssue struct {
 func parseBatchResults(result string) []static.Finding {
 	var findings []static.Finding
 
-	// 解析每行的 JSON 物件
+	// Parse JSON objects on each line
 	lines := strings.Split(result, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -88,7 +88,7 @@ func parseBatchResults(result string) []static.Finding {
 			continue
 		}
 
-		// 簡單 JSON 解析
+		// Simple JSON parsing
 		var issue batchIssue
 		if err := jsonUnmarshalSimple(line, &issue); err != nil {
 			continue
@@ -108,7 +108,7 @@ func parseBatchResults(result string) []static.Finding {
 }
 
 func jsonUnmarshalSimple(s string, v *batchIssue) error {
-	// 極簡 JSON 解析器，避免依賴 encoding/json 的效能開銷
+	// Minimal JSON parser, avoids the performance overhead of encoding/json
 	extract := func(key string) string {
 		start := strings.Index(s, `"`+key+`"`)
 		if start == -1 {
@@ -130,7 +130,7 @@ func jsonUnmarshalSimple(s string, v *batchIssue) error {
 			return rest[:end]
 		}
 
-		// 數字
+		// Number
 		end := strings.IndexAny(rest, ",}")
 		if end == -1 {
 			return rest

@@ -9,7 +9,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// Save 將設定寫入預設路徑。
+// Save writes the configuration to the default path.
 func Save(cfg *Config) (string, error) {
 	dir, err := ConfigDir()
 	if err != nil {
@@ -17,7 +17,7 @@ func Save(cfg *Config) (string, error) {
 	}
 
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", fmt.Errorf("無法建立設定目錄 %s: %w", dir, err)
+		return "", fmt.Errorf("unable to create config directory %s: %w", dir, err)
 	}
 
 	path, err := ConfigPath()
@@ -27,19 +27,19 @@ func Save(cfg *Config) (string, error) {
 
 	f, err := os.Create(path)
 	if err != nil {
-		return "", fmt.Errorf("無法寫入設定檔 %s: %w", path, err)
+		return "", fmt.Errorf("unable to write config file %s: %w", path, err)
 	}
 	defer f.Close()
 
 	enc := toml.NewEncoder(f)
 	if err := enc.Encode(cfg); err != nil {
-		return "", fmt.Errorf("無法編碼設定: %w", err)
+		return "", fmt.Errorf("unable to encode config: %w", err)
 	}
 
 	return path, nil
 }
 
-// Load 從預設路徑載入設定。如果設定檔不存在，回傳預設值。
+// Load loads configuration from the default path. Returns defaults if the config file does not exist.
 func Load() (*Config, string, error) {
 	path, err := ConfigPath()
 	if err != nil {
@@ -53,16 +53,16 @@ func Load() (*Config, string, error) {
 	}
 
 	if _, err := toml.DecodeFile(path, cfg); err != nil {
-		return nil, path, fmt.Errorf("設定檔格式錯誤 %s: %w", path, err)
+		return nil, path, fmt.Errorf("config file format error %s: %w", path, err)
 	}
 
-	// 環境變數覆蓋
+	// Environment variable overrides
 	cfg.applyEnvOverrides()
 
 	return cfg, path, nil
 }
 
-// applyEnvOverrides 以環境變數覆蓋設定值。
+// applyEnvOverrides overrides config values with environment variables.
 func (c *Config) applyEnvOverrides() {
 	if v := os.Getenv("SIFT_LLM_PROVIDER"); v != "" {
 		c.LLM.Provider = LLMProvider(v)
@@ -75,14 +75,14 @@ func (c *Config) applyEnvOverrides() {
 	}
 }
 
-// Editor 開啟預設編輯器編輯設定檔。
+// Editor opens the config file in the default editor.
 func Editor() error {
 	path, err := ConfigPath()
 	if err != nil {
 		return err
 	}
 
-	// 確保設定檔存在
+	// Ensure config file exists
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		if _, err := Save(Default()); err != nil {
 			return err

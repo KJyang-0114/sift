@@ -14,7 +14,7 @@ func init() {
 	embeddedRules = make(map[string]string)
 	entries, err := fs.ReadDir(rulesFS, "rules")
 	if err != nil {
-		// 開發模式：從磁碟讀取
+		// Dev mode: read from disk
 		loadRulesFromDisk()
 		return
 	}
@@ -32,7 +32,7 @@ func init() {
 }
 
 func loadRulesFromDisk() {
-	// 開發備案：嘗試從 rules/ 目錄載入
+	// Dev fallback: attempt to load from the rules/ directory
 	rulesDir := filepath.Join("internal", "static", "rules")
 	entries, err := os.ReadDir(rulesDir)
 	if err != nil {

@@ -1,9 +1,9 @@
 rules:
   - id: sift.prototype-pollution-merge
     message: |
-      [Prototype Pollution] 深度合併使用者輸入的物件可能汙染 Object.prototype。
-      攻擊者可注入 __proto__ 或 constructor 屬性來竄改全域物件行為。
-      請使用安全的合併函數（如 lodash.merge 的 safe 模式、或 Object.assign 淺拷貝）。
+      [Prototype Pollution] Deep-merging user-supplied objects may pollute Object.prototype.
+      Attackers can inject __proto__ or constructor properties to tamper with global object behavior.
+      Use safe merge utilities (e.g., lodash.merge with safe mode, or Object.assign for shallow copies).
     severity: ERROR
     languages:
       - javascript
@@ -24,8 +24,8 @@ rules:
 
   - id: sift.prototype-pollution-json-parse
     message: |
-      [Prototype Pollution] JSON.parse 雖不會觸發 Prototype Pollution，但若結果用於遞迴合併仍有風險。
-      請對所有來自外部的 JSON 輸入進行 key 過濾（過濾 __proto__, constructor, prototype）。
+      [Prototype Pollution] JSON.parse does not trigger prototype pollution directly, but risks remain if the result is used in recursive merges.
+      Filter keys on all external JSON input (strip __proto__, constructor, prototype).
     severity: WARNING
     languages:
       - javascript

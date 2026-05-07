@@ -27,7 +27,7 @@ type jsonSummary struct {
 	Info     int `json:"info"`
 }
 
-// RenderJSON 以 JSON 格式輸出報告。
+// RenderJSON outputs the scan report in JSON format.
 func RenderJSON(findings []static.Finding, target string, duration time.Duration) {
 	groups := static.GroupBySeverity(findings)
 

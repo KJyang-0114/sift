@@ -6,17 +6,17 @@ import (
 	"time"
 )
 
-// Engine 管理所有輸出格式的報告引擎。
+// Engine manages report rendering for all output formats.
 type Engine struct {
 	cfg *config.Config
 }
 
-// NewEngine 建立報告引擎。
+// NewEngine creates a new report engine.
 func NewEngine(cfg *config.Config) *Engine {
 	return &Engine{cfg: cfg}
 }
 
-// Render 根據指定格式輸出報告。
+// Render outputs the report in the specified format.
 func (e *Engine) Render(findings []static.Finding, target string, duration time.Duration, format string) {
 	switch format {
 	case "json":

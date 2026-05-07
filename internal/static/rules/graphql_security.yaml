@@ -1,9 +1,9 @@
 rules:
   - id: sift.graphql-introspection-enabled
     message: |
-      [GraphQL Security] GraphQL Introspection 在生產環境中啟用。
-      攻擊者可透過 introspection 列舉所有可用查詢和欄位。
-      請在 production 環境中關閉 introspection。
+      [GraphQL Security] GraphQL introspection is enabled in production.
+      Attackers can enumerate all available queries and fields via introspection.
+      Disable introspection in production environments.
     severity: WARNING
     languages:
       - javascript
@@ -21,8 +21,8 @@ rules:
 
   - id: sift.graphql-depth-limit
     message: |
-      [GraphQL Security] 未設定查詢深度限制，攻擊者可透過嵌套查詢發動 DoS。
-      請使用 graphql-depth-limit 或 graphql-query-complexity 限制查詢複雜度。
+      [GraphQL Security] No query depth limit is set; attackers can launch DoS attacks via deeply nested queries.
+      Use graphql-depth-limit or graphql-query-complexity to limit query complexity.
     severity: WARNING
     languages:
       - javascript
@@ -39,7 +39,7 @@ rules:
 
   - id: sift.graphql-batch-attack
     message: |
-      [GraphQL Security] 未限制批次請求數量，攻擊者可發送大量別名查詢繞過 Rate Limiting。
+      [GraphQL Security] Batch request count is not limited; attackers can send many aliased queries to bypass rate limiting.
     severity: WARNING
     languages:
       - javascript

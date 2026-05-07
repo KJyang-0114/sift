@@ -1,8 +1,8 @@
 rules:
   - id: sift.nosql-injection-mongo
     message: |
-      [NoSQL Injection] 使用者輸入直接傳入 MongoDB 查詢，可能繞過驗證或竊取資料。
-      請使用 $eq 明確指定比對方式，或使用 mongoose 的 Schema 驗證。
+      [NoSQL Injection] User input is passed directly into a MongoDB query, which may bypass authentication or exfiltrate data.
+      Use $eq to explicitly specify the comparison operator, or use Mongoose schema validation.
     severity: ERROR
     languages:
       - javascript

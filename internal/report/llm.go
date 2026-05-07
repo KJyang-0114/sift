@@ -7,8 +7,8 @@ import (
 	"github.com/KJyang-0114/sift/internal/static"
 )
 
-// RenderLLM 以 LLM 可直接消費的格式輸出報告。
-// 此格式專為貼給 LLM（如 Claude、GPT）設計，讓 LLM 可以直接產生修復程式碼。
+// RenderLLM outputs the report in an LLM-consumable format.
+// This format is designed for pasting into LLMs (Claude, GPT, etc.) so they can generate fix code directly.
 func RenderLLM(findings []static.Finding, target string) {
 	fmt.Println("# Code Issues Report")
 	fmt.Println()

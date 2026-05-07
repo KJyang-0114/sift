@@ -1,8 +1,8 @@
 rules:
   - id: sift.sql-injection-concat
     message: |
-      [SQL Injection] 字串拼接組成 SQL 查詢。
-      請使用參數化查詢。
+      [SQL Injection] SQL query is built using string concatenation.
+      Use parameterized queries instead.
     severity: ERROR
     languages:
       - python

@@ -19,13 +19,13 @@ func newFixCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "fix [path]",
-		Short: "自動掃描並修復安全漏洞",
-		Long: `fix 先執行完整安全掃描，然後針對每個發現的問題產生修復建議。
+		Short: "Automatically scan and fix security vulnerabilities",
+		Long: `fix first runs a full security scan, then generates fix suggestions for each finding.
 
-模式：
-  sift fix .                掃描 + 顯示修復建議（不套用）
-  sift fix . --auto         掃描 + 自動套用所有修復
-  sift fix . --interactive  掃描 + 逐一確認後套用`,
+	Modes:
+	  sift fix .                scan + show fix suggestions (no apply)
+	  sift fix . --auto         scan + auto-apply all fixes
+	  sift fix . --interactive  scan + confirm each fix before applying`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target := "."
@@ -33,33 +33,33 @@ func newFixCmd() *cobra.Command {
 				target = args[0]
 			}
 
-			// 載入設定
+			// Load configuration
 			cfg, _, err := config.Load()
 			if err != nil {
 				return err
 			}
 
-			// Phase 1: 掃描
-			fmt.Println("  🔍 Phase 1: 掃描安全漏洞...")
+			// Phase 1: Scan
+			fmt.Println("  🔍 Phase 1: Scanning for security vulnerabilities...")
 			orch := scan.NewOrchestrator(cfg)
 			if err := orch.Run(target, "terminal"); err != nil {
-				// 即使掃描有部分錯誤，仍繼續嘗試修復
-				fmt.Fprintf(os.Stderr, "  ⚠️  掃描部分失敗: %v\n", err)
+				// Even if scan partially fails, continue with fix attempt
+				fmt.Fprintf(os.Stderr, "  ⚠️  Scan partially failed: %v\n", err)
 			}
 
-			// Phase 2: 取得 findings 並修復
-			// 重新掃描取得結構化結果
+			// Phase 2: Retrieve findings and fix
+			// Re-scan to get structured results
 			fmt.Println()
-			fmt.Println("  🔧 Phase 2: 產生修復建議...")
+			fmt.Println("  🔧 Phase 2: Generating fix suggestions...")
 			findings := orch.LastFindings()
 			if len(findings) == 0 {
-				fmt.Println("  ✅ 沒有需要修復的問題！")
+				fmt.Println("  ✅ No issues to fix!")
 				return nil
 			}
 
 			fixer, err := agent.NewFixer(cfg)
 			if err != nil {
-				return fmt.Errorf("無法初始化修復器: %w", err)
+				return fmt.Errorf("cannot initialize fixer: %w", err)
 			}
 
 			results := fixer.Fix(findings)
@@ -78,36 +78,36 @@ func newFixCmd() *cobra.Command {
 				}
 
 				if interactive {
-					fmt.Printf("\n  ── 修復 [%d/%d] ──\n", i+1, len(results))
-					fmt.Printf("  檔案: %s:%d\n", r.Finding.File, r.Finding.Line)
-					fmt.Printf("  問題: %s\n", r.Finding.Message)
-					fmt.Printf("  修復:\n%s\n", r.Patch)
-					fmt.Print("  套用此修復? [y/N/a(ll)/q(uit)]: ")
+					fmt.Printf("\n  ── Fix [%d/%d] ──\n", i+1, len(results))
+					fmt.Printf("  File: %s:%d\n", r.Finding.File, r.Finding.Line)
+					fmt.Printf("  Issue: %s\n", r.Finding.Message)
+					fmt.Printf("  Fix:\n%s\n", r.Patch)
+					fmt.Print("  Apply this fix? [y/N/a(ll)/q(uit)]: ")
 
 					var answer string
 					fmt.Scanln(&answer)
 					switch answer {
 					case "q":
-						fmt.Println("  已取消。")
+						fmt.Println("  Cancelled.")
 						goto done
 					case "a":
 						interactive = false
 						fallthrough
 					case "y", "Y":
 						if err := fixer.ApplyFix(r); err != nil {
-							fmt.Printf("  ❌ 套用失敗: %v\n", err)
+							fmt.Printf("  ❌ Apply failed: %v\n", err)
 						} else {
-							fmt.Println("  ✅ 已套用")
+							fmt.Println("  ✅ Applied")
 							fixedCount++
 						}
 					default:
-						fmt.Println("  ⏭️  跳過")
+						fmt.Println("  ⏭️  Skipped")
 					}
 				} else if auto {
 					if err := fixer.ApplyFix(r); err != nil {
-						fmt.Printf("  ❌ [%d/%d] 套用失敗: %v\n", i+1, len(results), err)
+						fmt.Printf("  ❌ [%d/%d] Apply failed: %v\n", i+1, len(results), err)
 					} else {
-						fmt.Printf("  ✅ [%d/%d] 已修復: %s:%d\n", i+1, len(results), r.Finding.File, r.Finding.Line)
+						fmt.Printf("  ✅ [%d/%d] Fixed: %s:%d\n", i+1, len(results), r.Finding.File, r.Finding.Line)
 						fixedCount++
 					}
 				} else {
@@ -116,19 +116,19 @@ func newFixCmd() *cobra.Command {
 			}
 
 		done:
-			fmt.Printf("\n  📊 修復完成: %d/%d 個問題已修復\n", fixedCount, len(results))
+			fmt.Printf("\n  📊 Fix complete: %d/%d issues fixed\n", fixedCount, len(results))
 			if !dryRun && fixedCount > 0 {
-				fmt.Println("  💡 若要還原修復: sift fix --rollback")
-				fmt.Println("  💡 重新掃描驗證: sift scan .")
+				fmt.Println("  💡 To revert fixes: sift fix --rollback")
+				fmt.Println("  💡 Re-scan to verify: sift scan .")
 			}
 
 			return nil
 		},
 	}
 
-	cmd.Flags().BoolVar(&auto, "auto", false, "自動套用所有修復")
-	cmd.Flags().BoolVar(&interactive, "interactive", false, "逐一確認後套用")
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "僅顯示修復建議，不套用")
+	cmd.Flags().BoolVar(&auto, "auto", false, "auto-apply all fixes")
+	cmd.Flags().BoolVar(&interactive, "interactive", false, "confirm each fix interactively")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show fix suggestions without applying")
 
 	return cmd
 }

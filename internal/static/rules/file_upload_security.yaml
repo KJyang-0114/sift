@@ -1,9 +1,9 @@
 rules:
   - id: sift.file-upload-no-validation
     message: |
-      [File Upload Security] 檔案上傳未驗證檔案類型、大小或內容。
-      攻擊者可上傳 Web Shell 或惡意執行檔。
-      請驗證 MIME type、副檔名白名單、檔案大小上限。
+      [File Upload Security] File upload does not validate file type, size, or content.
+      Attackers can upload web shells or malicious executables.
+      Validate MIME type, enforce a file extension allowlist, and set a file size limit.
     severity: ERROR
     languages:
       - python
@@ -29,8 +29,8 @@ rules:
 
   - id: sift.file-upload-user-path
     message: |
-      [File Upload Security] 上傳檔案的路徑由使用者輸入控制。
-      攻擊者可利用 Path Traversal 覆寫系統檔案。
+      [File Upload Security] Upload file path is controlled by user input.
+      Attackers can exploit path traversal to overwrite system files.
     severity: ERROR
     languages:
       - python

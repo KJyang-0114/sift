@@ -21,13 +21,13 @@ func newScanCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "scan [path]",
-		Short: "掃描程式碼安全漏洞",
-		Long: `scan 對指定路徑執行全自動安全掃描，包含：
-  - 靜態規則掃描 (Semgrep)
-  - 幻覺套件檢測
-  - 沙盒動態測試 (可選)
+		Short: "Scan code for security vulnerabilities",
+		Long: `scan performs a fully automated security scan on the given path, including:
+	  - Static rule scanning (Semgrep)
+	  - Hallucinated package detection
+	  - Sandbox dynamic testing (optional)
 
-支援目錄、單一檔案、或 Git diff 掃描。`,
+	Supports directories, single files, or Git diff scanning.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target := "."
@@ -35,26 +35,26 @@ func newScanCmd() *cobra.Command {
 				target = args[0]
 			}
 
-			// 路徑驗證：拒絕包含 ../ 的路徑（path traversal 防護）
+			// Path validation: reject paths containing ../ (path traversal protection)
 			if strings.Contains(target, "..") {
-				return fmt.Errorf("不允許的路徑: %s", target)
+				return fmt.Errorf("path not allowed: %s", target)
 			}
 
 			absTarget, err := filepath.Abs(target)
 			if err != nil {
-				return fmt.Errorf("無法解析路徑: %w", err)
+				return fmt.Errorf("cannot resolve path: %w", err)
 			}
 			if _, err := os.Stat(absTarget); err != nil {
-				return fmt.Errorf("路徑不存在: %s", absTarget)
+				return fmt.Errorf("path does not exist: %s", absTarget)
 			}
 
-			// 載入設定
+			// Load configuration
 			cfg, _, err := config.Load()
 			if err != nil {
 				return err
 			}
 
-			// 命令列參數覆蓋設定
+			// Command-line flags override config
 			if cmd.Flags().Changed("timeout") {
 				cfg.Scan.Timeout = timeout
 			}
@@ -77,10 +77,10 @@ func newScanCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&format, "format", "f", "terminal", "輸出格式 (terminal|json|sarif|llm)")
-	cmd.Flags().StringVar(&sandbox, "sandbox", "orbital", "沙盒模式 (orbital)")
-	cmd.Flags().IntVarP(&timeout, "timeout", "t", 120, "單檔最大掃描秒數")
-	cmd.Flags().BoolVar(&diffMode, "diff", false, "只掃描變更的檔案 (git diff)")
+	cmd.Flags().StringVarP(&format, "format", "f", "terminal", "output format (terminal|json|sarif|llm)")
+	cmd.Flags().StringVar(&sandbox, "sandbox", "orbital", "sandbox mode (orbital)")
+	cmd.Flags().IntVarP(&timeout, "timeout", "t", 120, "max scan seconds per file")
+	cmd.Flags().BoolVar(&diffMode, "diff", false, "scan changed files only (git diff)")
 
 	return cmd
 }

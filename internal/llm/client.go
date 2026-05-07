@@ -8,16 +8,16 @@ import (
 	"github.com/KJyang-0114/sift/internal/config"
 )
 
-// Client 是 LLM 調用的統一介面。
+// Client is the unified interface for LLM calls.
 type Client interface {
-	// Chat 發送訊息並回傳模型回應。
+	// Chat sends a message and returns the model response.
 	Chat(ctx context.Context, systemPrompt, userMessage string) (string, error)
 
-	// Name 回傳此 client 的 provider 名稱。
+	// Name returns the provider name of this client.
 	Name() string
 }
 
-// Request 代表一次標準化 LLM 請求。
+// Request represents a standardized LLM request.
 type Request struct {
 	SystemPrompt string
 	UserMessage  string
@@ -25,16 +25,16 @@ type Request struct {
 	Temperature  float64
 }
 
-// Response 代表標準化 LLM 回應。
+// Response represents a standardized LLM response.
 type Response struct {
-	Text       string
-	TokensIn   int
-	TokensOut  int
-	Model      string
-	Duration   time.Duration
+	Text      string
+	TokensIn  int
+	TokensOut int
+	Model     string
+	Duration  time.Duration
 }
 
-// NewClient 根據設定建立對應的 LLM client。
+// NewClient creates the corresponding LLM client based on configuration.
 func NewClient(cfg *config.LLMConfig) (Client, error) {
 	switch cfg.Provider {
 	case config.ProviderAnthropic:
@@ -52,8 +52,8 @@ func NewClient(cfg *config.LLMConfig) (Client, error) {
 	case config.ProviderDeepSeek:
 		return NewDeepSeekClient(cfg.APIKey, cfg.Model)
 	case config.ProviderOffline:
-		return nil, fmt.Errorf("LLM 未設定 (離線模式)")
+		return nil, fmt.Errorf("LLM not configured (offline mode)")
 	default:
-		return nil, fmt.Errorf("不支援的 LLM provider: %s", cfg.Provider)
+		return nil, fmt.Errorf("unsupported LLM provider: %s", cfg.Provider)
 	}
 }

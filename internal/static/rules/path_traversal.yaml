@@ -1,7 +1,7 @@
 rules:
   - id: sift.path-traversal-file-op
     message: |
-      [Path Traversal] 檔案路徑由變數構成，可能被 ../ 繞出預期目錄。
+      [Path Traversal] File path is constructed from a variable and may be manipulated with ../ to escape the intended directory.
     severity: WARNING
     languages:
       - python

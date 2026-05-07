@@ -11,7 +11,7 @@ import (
 
 const siliconFlowBaseURL = "https://api.siliconflow.com/v1/chat/completions"
 
-// SiliconFlowClient 封裝 SiliconFlow API（OpenAI 相容格式，支援 DeepSeek 等模型）。
+// SiliconFlowClient wraps the SiliconFlow API (OpenAI-compatible format, supports DeepSeek and other models).
 type SiliconFlowClient struct {
 	apiKey string
 	model  string
@@ -25,10 +25,10 @@ type siliconFlowRequest struct {
 	Temperature float64         `json:"temperature"`
 }
 
-// NewSiliconFlowClient 建立 SiliconFlow API client。
+// NewSiliconFlowClient creates a SiliconFlow API client.
 func NewSiliconFlowClient(apiKey, model string) (*SiliconFlowClient, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("SiliconFlow API key 未設定")
+		return nil, fmt.Errorf("SiliconFlow API key not set")
 	}
 	if model == "" {
 		model = "deepseek-ai/DeepSeek-V4-Flash"
@@ -40,12 +40,12 @@ func NewSiliconFlowClient(apiKey, model string) (*SiliconFlowClient, error) {
 	}, nil
 }
 
-// Name 回傳 provider 名稱。
+// Name returns the provider name.
 func (c *SiliconFlowClient) Name() string {
 	return "siliconflow"
 }
 
-// Chat 向 SiliconFlow API 發送訊息並取得回應。
+// Chat sends a message to the SiliconFlow API and returns the response.
 func (c *SiliconFlowClient) Chat(ctx context.Context, systemPrompt, userMessage string) (string, error) {
 	messages := []openAIMessage{
 		{Role: "user", Content: userMessage},
@@ -63,12 +63,12 @@ func (c *SiliconFlowClient) Chat(ctx context.Context, systemPrompt, userMessage 
 
 	body, err := json.Marshal(req)
 	if err != nil {
-		return "", fmt.Errorf("序列化請求失敗: %w", err)
+		return "", fmt.Errorf("failed to serialize request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", siliconFlowBaseURL, bytes.NewReader(body))
 	if err != nil {
-		return "", fmt.Errorf("建立請求失敗: %w", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -76,25 +76,25 @@ func (c *SiliconFlowClient) Chat(ctx context.Context, systemPrompt, userMessage 
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
-		return "", fmt.Errorf("API 請求失敗: %w", err)
+		return "", fmt.Errorf("API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("SiliconFlow API 錯誤 (%d): 請確認 API Key 和模型名稱是否正確", resp.StatusCode)
+		return "", fmt.Errorf("SiliconFlow API error (%d): please verify your API key and model name are correct", resp.StatusCode)
 	}
 
 	var result openAIResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("解析回應失敗: %w", err)
+		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if result.Error != nil {
-		return "", fmt.Errorf("SiliconFlow API 錯誤: %s", result.Error.Message)
+		return "", fmt.Errorf("SiliconFlow API error: %s", result.Error.Message)
 	}
 
 	if len(result.Choices) == 0 {
-		return "", fmt.Errorf("SiliconFlow 回傳空白回應")
+		return "", fmt.Errorf("SiliconFlow returned an empty response")
 	}
 
 	return result.Choices[0].Message.Content, nil

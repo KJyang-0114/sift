@@ -12,51 +12,51 @@ import (
 	"github.com/KJyang-0114/sift/internal/static"
 )
 
-// PackageVerifier 驗證依賴套件是否真實存在。
+// PackageVerifier verifies whether dependency packages actually exist.
 type PackageVerifier struct {
 	client *http.Client
 }
 
-// NewPackageVerifier 建立新的套件驗證器。
+// NewPackageVerifier creates a new package verifier.
 func NewPackageVerifier() *PackageVerifier {
 	return &PackageVerifier{
 		client: &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
-// Name 回傳分析器名稱。
+// Name returns the analyzer name.
 func (pv *PackageVerifier) Name() string {
 	return "package-verifier"
 }
 
-// DepFile 描述一個依賴檔案。
+// DepFile describes a dependency file.
 type DepFile struct {
-	Path       string   `json:"path"`
-	Ecosystem  string   `json:"ecosystem"` // npm, pypi, cargo, go
-	Packages   []string `json:"packages"`
+	Path      string   `json:"path"`
+	Ecosystem string   `json:"ecosystem"` // npm, pypi, cargo, go
+	Packages  []string `json:"packages"`
 }
 
-// Analyze 掃描目標目錄中的所有依賴檔案，驗證套件是否存在。
+// Analyze scans all dependency files in the target directory and verifies that packages exist.
 func (pv *PackageVerifier) Analyze(target string) ([]static.Finding, error) {
 	var allFindings []static.Finding
 
 	depFiles, err := pv.findDepFiles(target)
 	if err != nil {
-		return nil, fmt.Errorf("搜尋依賴檔案失敗: %w", err)
+		return nil, fmt.Errorf("failed to locate dependency files: %w", err)
 	}
 
 	for _, df := range depFiles {
 		for _, pkg := range df.Packages {
 			exists, err := pv.verifyPackage(df.Ecosystem, pkg)
 			if err != nil {
-				// 網路錯誤時跳過，不要阻擋掃描
+				// Skip on network errors, do not block the scan
 				continue
 			}
 			if !exists && !isCommonTypo(pkg) {
 				allFindings = append(allFindings, static.Finding{
 					ID:       "sift.hallucinated-package",
 					Rule:     "sift.hallucinated-package",
-					Message:  fmt.Sprintf("[幻覺套件] 「%s」在 %s 註冊表中不存在。這可能是 AI 幻覺或 Typo-squatting 攻擊。", pkg, df.Ecosystem),
+					Message:  fmt.Sprintf("[Hallucinated Package] \"%s\" does not exist in the %s registry. This may be an AI hallucination or typo-squatting attack.", pkg, df.Ecosystem),
 					Severity: static.SeverityCritical,
 					Category: "security",
 					File:     df.Path,
@@ -71,7 +71,7 @@ func (pv *PackageVerifier) Analyze(target string) ([]static.Finding, error) {
 	return allFindings, nil
 }
 
-// findDepFiles 找出目標目錄中的依賴檔案。
+// findDepFiles locates dependency files in the target directory.
 func (pv *PackageVerifier) findDepFiles(target string) ([]DepFile, error) {
 	var depFiles []DepFile
 
@@ -80,7 +80,7 @@ func (pv *PackageVerifier) findDepFiles(target string) ([]DepFile, error) {
 			return nil
 		}
 
-		// 跳過常見排除目錄
+		// Skip common excluded directories
 		skipDirs := []string{"node_modules", "vendor", ".git", "__pycache__", "dist", "target", "venv", ".venv", "site-packages"}
 		if info.IsDir() {
 			for _, d := range skipDirs {
@@ -106,7 +106,7 @@ func (pv *PackageVerifier) findDepFiles(target string) ([]DepFile, error) {
 			}
 
 		case "Pipfile":
-			// Pipfile 用 TOML 格式，簡化處理
+			// Pipfile uses TOML format, simplified parsing
 			pkgs := parsePipfile(path)
 			if len(pkgs) > 0 {
 				depFiles = append(depFiles, DepFile{Path: path, Ecosystem: "pypi", Packages: pkgs})
@@ -130,7 +130,7 @@ func (pv *PackageVerifier) findDepFiles(target string) ([]DepFile, error) {
 	return depFiles, err
 }
 
-// verifyPackage 向註冊表 API 查詢套件是否存在。
+// verifyPackage queries the registry API to check whether a package exists.
 func (pv *PackageVerifier) verifyPackage(ecosystem, name string) (bool, error) {
 	switch ecosystem {
 	case "npm":
@@ -140,7 +140,7 @@ func (pv *PackageVerifier) verifyPackage(ecosystem, name string) (bool, error) {
 	case "cargo":
 		return pv.checkCargo(name)
 	case "go":
-		// Go 模組較難驗證（私有 repo 常見），先用 proxy 檢查
+		// Go modules are harder to verify (private repos are common), use proxy check first
 		return pv.checkGoProxy(name)
 	}
 	return true, nil
@@ -198,9 +198,9 @@ func (pv *PackageVerifier) checkGoProxy(name string) (bool, error) {
 	return resp.StatusCode == 200, nil
 }
 
-// isCommonTypo 檢查是否為常見套件的拼字錯誤（可能是 typo-squatting）。
+// isCommonTypo checks whether the name is a common package typo (potential typo-squatting).
 func isCommonTypo(name string) bool {
-	// 允許常見安全套件名稱通過（減少 false positive）
+	// Allow common security package names to pass through (reduce false positives)
 	commonPrefixes := []string{
 		"@types/", "@babel/", "@eslint/", "@anthropic-ai/",
 		"eslint-plugin-", "babel-plugin-",
@@ -213,7 +213,7 @@ func isCommonTypo(name string) bool {
 	return false
 }
 
-// ── 依賴檔案解析器 ──
+// ── Dependency File Parsers ──
 
 func parsePackageJSON(path string) []string {
 	data, err := os.ReadFile(path)
@@ -255,7 +255,7 @@ func parseRequirementsTxt(path string) []string {
 		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "-") {
 			continue
 		}
-		// 提取套件名稱（去掉版本號）
+		// Extract package name (strip version specifiers)
 		name := strings.SplitN(line, "==", 2)[0]
 		name = strings.SplitN(name, ">=", 2)[0]
 		name = strings.SplitN(name, "<=", 2)[0]
@@ -337,7 +337,7 @@ func parseGoMod(path string) []string {
 		if strings.HasPrefix(trimmed, "module ") {
 			continue
 		}
-		// 擷取 require 行
+		// Extract require lines
 		if strings.HasPrefix(trimmed, "require ") {
 			parts := strings.Fields(trimmed)
 			if len(parts) >= 2 {

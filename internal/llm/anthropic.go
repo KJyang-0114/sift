@@ -12,7 +12,7 @@ import (
 const anthropicBaseURL = "https://api.anthropic.com/v1/messages"
 const anthropicVersion = "2023-06-01"
 
-// AnthropicClient 封裝 Anthropic Messages API。
+// AnthropicClient wraps the Anthropic Messages API.
 type AnthropicClient struct {
 	apiKey string
 	model  string
@@ -48,10 +48,10 @@ type anthropicResponse struct {
 	} `json:"error,omitempty"`
 }
 
-// NewAnthropicClient 建立 Anthropic API client。
+// NewAnthropicClient creates an Anthropic API client.
 func NewAnthropicClient(apiKey, model string) (*AnthropicClient, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("Anthropic API key 未設定。請執行 sift init 或設定 SIFT_LLM_API_KEY 環境變數")
+		return nil, fmt.Errorf("Anthropic API key not set. Run sift init or set the SIFT_LLM_API_KEY environment variable")
 	}
 	if model == "" {
 		model = "claude-sonnet-4-6"
@@ -63,12 +63,12 @@ func NewAnthropicClient(apiKey, model string) (*AnthropicClient, error) {
 	}, nil
 }
 
-// Name 回傳 provider 名稱。
+// Name returns the provider name.
 func (c *AnthropicClient) Name() string {
 	return "anthropic"
 }
 
-// Chat 向 Anthropic API 發送訊息並取得回應。
+// Chat sends a message to the Anthropic API and returns the response.
 func (c *AnthropicClient) Chat(ctx context.Context, systemPrompt, userMessage string) (string, error) {
 	req := anthropicRequest{
 		Model:       c.model,
@@ -82,12 +82,12 @@ func (c *AnthropicClient) Chat(ctx context.Context, systemPrompt, userMessage st
 
 	body, err := json.Marshal(req)
 	if err != nil {
-		return "", fmt.Errorf("序列化請求失敗: %w", err)
+		return "", fmt.Errorf("failed to serialize request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", anthropicBaseURL, bytes.NewReader(body))
 	if err != nil {
-		return "", fmt.Errorf("建立請求失敗: %w", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -96,25 +96,25 @@ func (c *AnthropicClient) Chat(ctx context.Context, systemPrompt, userMessage st
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
-		return "", fmt.Errorf("API 請求失敗: %w", err)
+		return "", fmt.Errorf("API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("API 錯誤 (%d): 請確認 API Key 是否正確", resp.StatusCode)
+		return "", fmt.Errorf("API error (%d): please verify your API key is correct", resp.StatusCode)
 	}
 
 	var result anthropicResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("解析回應失敗: %w", err)
+		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if result.Error != nil {
-		return "", fmt.Errorf("Anthropic API 錯誤: %s", result.Error.Message)
+		return "", fmt.Errorf("Anthropic API error: %s", result.Error.Message)
 	}
 
 	if len(result.Content) == 0 {
-		return "", fmt.Errorf("Anthropic 回傳空白回應")
+		return "", fmt.Errorf("Anthropic returned an empty response")
 	}
 
 	return result.Content[0].Text, nil

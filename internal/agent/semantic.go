@@ -14,20 +14,20 @@ import (
 	"github.com/KJyang-0114/sift/internal/static"
 )
 
-// SemanticAnalyzer 使用 LLM 對程式碼進行語意層面的安全與邏輯分析。
+// SemanticAnalyzer uses LLM to perform semantic-level security and logic analysis on code.
 type SemanticAnalyzer struct {
 	client llm.Client
 	cfg    *config.Config
 }
 
-// NewSemanticAnalyzer 建立語意分析器。
+// NewSemanticAnalyzer creates a semantic analyzer.
 func NewSemanticAnalyzer(cfg *config.Config) (*SemanticAnalyzer, error) {
 	client, err := llm.NewClient(&cfg.LLM)
 	if err != nil {
 		return nil, err
 	}
 	if client == nil {
-		return nil, fmt.Errorf("LLM 未設定，無法進行語意分析。請執行 sift init")
+		return nil, fmt.Errorf("LLM not configured, cannot perform semantic analysis. Run sift init")
 	}
 	return &SemanticAnalyzer{
 		client: client,
@@ -35,14 +35,14 @@ func NewSemanticAnalyzer(cfg *config.Config) (*SemanticAnalyzer, error) {
 	}, nil
 }
 
-// Name 回傳分析器名稱。
+// Name returns the analyzer name.
 func (sa *SemanticAnalyzer) Name() string {
 	return "llm-semantic"
 }
 
-// Analyze 對目標程式碼執行 LLM 語意分析。
+// Analyze performs LLM semantic analysis on the target code.
 func (sa *SemanticAnalyzer) Analyze(target string) ([]static.Finding, error) {
-	// 收集要分析的檔案（最多 20 個檔案以控制成本）
+	// Collect files to analyze (max 20 files to control costs)
 	files, err := sa.collectFiles(target, 20)
 	if err != nil {
 		return nil, err
@@ -54,12 +54,12 @@ func (sa *SemanticAnalyzer) Analyze(target string) ([]static.Finding, error) {
 
 	var allFindings []static.Finding
 
-	// 逐一分析每個檔案
+	// Analyze each file individually
 	for _, file := range files {
 		findings, err := sa.analyzeFile(file)
 		if err != nil {
-			// 單一檔案分析失敗時跳過，不中斷整體掃描
-			fmt.Fprintf(os.Stderr, "  ⚠️  LLM 分析 %s 失敗: %v\n", file, err)
+			// Skip individual file analysis failures, do not abort the overall scan
+			fmt.Fprintf(os.Stderr, "  ⚠️  LLM analysis of %s failed: %v\n", file, err)
 			continue
 		}
 		allFindings = append(allFindings, findings...)
@@ -68,19 +68,19 @@ func (sa *SemanticAnalyzer) Analyze(target string) ([]static.Finding, error) {
 	return allFindings, nil
 }
 
-// analyzeFile 使用 LLM 分析單一檔案。
+// analyzeFile uses LLM to analyze a single file.
 func (sa *SemanticAnalyzer) analyzeFile(path string) ([]static.Finding, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	// 跳過空白檔案
+	// Skip empty files
 	if len(strings.TrimSpace(string(content))) == 0 {
 		return nil, nil
 	}
 
-	// 限制 token 用量：單檔最大 8000 字元
+	// Limit token usage: max 8000 characters per file
 	code := string(content)
 	if len(code) > 8000 {
 		code = code[:8000] + "\n// ... (truncated)"
@@ -97,11 +97,11 @@ func (sa *SemanticAnalyzer) analyzeFile(path string) ([]static.Finding, error) {
 	return parseSemanticResult(result, path)
 }
 
-// collectFiles 收集目標目錄中適合 LLM 分析的檔案。
+// collectFiles collects files suitable for LLM analysis from the target directory.
 func (sa *SemanticAnalyzer) collectFiles(target string, maxFiles int) ([]string, error) {
 	var files []string
 
-	// 優先收集的擴展名
+	// Priority file extensions
 	priorityExts := map[string]bool{
 		".py": true, ".js": true, ".ts": true, ".tsx": true,
 		".go": true, ".java": true, ".rb": true, ".php": true,
@@ -169,7 +169,7 @@ func detectLang(path string) string {
 	}
 }
 
-// ── LLM Prompt 設計 ──
+// ── LLM Prompt Design ──
 
 const semanticSystemPrompt = `You are a senior security engineer performing code review.
 Analyze the given code for security vulnerabilities and logic errors.
@@ -204,7 +204,7 @@ Language: %s
 
 Find security vulnerabilities and logic errors. Output JSON array only.`
 
-// semanticFinding 是 LLM 回傳的結構。
+// semanticFinding is the structure returned by the LLM.
 type semanticFinding struct {
 	Severity string `json:"severity"`
 	Line     int    `json:"line"`
@@ -213,7 +213,7 @@ type semanticFinding struct {
 }
 
 func parseSemanticResult(result string, file string) ([]static.Finding, error) {
-	// LLM 有時會在 JSON 前後多加文字，需要提取 JSON 陣列
+	// LLM sometimes adds extra text before/after JSON, need to extract the JSON array
 	jsonStr := extractJSONArray(result)
 	if jsonStr == "" {
 		return nil, nil
@@ -221,7 +221,7 @@ func parseSemanticResult(result string, file string) ([]static.Finding, error) {
 
 	var sf []semanticFinding
 	if err := json.Unmarshal([]byte(jsonStr), &sf); err != nil {
-		// JSON 解析失敗不應中斷整個掃描
+		// JSON parse failure should not abort the entire scan
 		return nil, nil
 	}
 

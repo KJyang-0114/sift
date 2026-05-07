@@ -1,7 +1,7 @@
 rules:
   - id: sift.session-cookie-no-httponly
     message: |
-      [Session Security] Cookie 未設定 httpOnly（XSS 可竊取 Token）。
+      [Session Security] Cookie does not set httpOnly (XSS can steal the token).
     severity: WARNING
     languages:
       - python

@@ -13,13 +13,13 @@ import (
 	"github.com/KJyang-0114/sift/internal/static"
 )
 
-// Fixer 使用 LLM 自動產生並套用修復。
+// Fixer uses LLM to automatically generate and apply fixes.
 type Fixer struct {
 	client   llm.Client
 	maxFixes int
 }
 
-// FixResult 是一次修復操作的結果。
+// FixResult is the result of a single fix operation.
 type FixResult struct {
 	Finding   static.Finding `json:"finding"`
 	Fixed     bool           `json:"fixed"`
@@ -27,14 +27,14 @@ type FixResult struct {
 	Error     string         `json:"error,omitempty"`
 }
 
-// NewFixer 建立自動修復器。
+// NewFixer creates an auto-fixer.
 func NewFixer(cfg *config.Config) (*Fixer, error) {
 	client, err := llm.NewClient(&cfg.LLM)
 	if err != nil {
 		return nil, err
 	}
 	if client == nil {
-		return nil, fmt.Errorf("LLM 未設定，無法自動修復。請執行 sift init")
+		return nil, fmt.Errorf("LLM not configured, cannot auto-fix. Run sift init")
 	}
 	return &Fixer{
 		client:   client,
@@ -42,13 +42,13 @@ func NewFixer(cfg *config.Config) (*Fixer, error) {
 	}, nil
 }
 
-// Name 回傳分析器名稱。
+// Name returns the analyzer name.
 func (f *Fixer) Name() string {
 	return "auto-fixer"
 }
 
-// Fix 對 findings 清單逐一產生修復建議。
-// 回傳每個 finding 的修復結果。
+// Fix generates fix suggestions for each finding in the list.
+// Returns the fix result for each finding.
 func (f *Fixer) Fix(findings []static.Finding) []FixResult {
 	var results []FixResult
 
@@ -75,49 +75,49 @@ func (f *Fixer) Fix(findings []static.Finding) []FixResult {
 	return results
 }
 
-// ApplyFix 套用單一修復到檔案。
+// ApplyFix applies a single fix to a file.
 func (f *Fixer) ApplyFix(result FixResult) error {
 	if !result.Fixed || result.Patch == "" {
-		return fmt.Errorf("沒有可套用的修復")
+		return fmt.Errorf("no fix available to apply")
 	}
 
-	// 讀取原始檔案
+	// Read original file
 	content, err := os.ReadFile(result.Finding.File)
 	if err != nil {
-		return fmt.Errorf("讀取檔案失敗: %w", err)
+		return fmt.Errorf("failed to read file: %w", err)
 	}
 
-	// 備份原始內容
+	// Backup original content
 	backup := string(content)
 	backupPath := result.Finding.File + ".sift.bak"
 	_ = os.WriteFile(backupPath, content, 0o644)
 
-	// 套用 patch
+	// Apply patch
 	patched, err := applyPatch(string(content), result.Patch)
 	if err != nil {
-		return fmt.Errorf("套用修復失敗: %w", err)
+		return fmt.Errorf("failed to apply fix: %w", err)
 	}
 
-	// 寫回檔案
+	// Write back to file
 	if err := os.WriteFile(result.Finding.File, []byte(patched), 0o644); err != nil {
-		// 還原
+		// Rollback
 		os.WriteFile(result.Finding.File, []byte(backup), 0o644)
-		return fmt.Errorf("寫入修復失敗: %w", err)
+		return fmt.Errorf("failed to write fix: %w", err)
 	}
 
 	return nil
 }
 
-// RollbackFix 還原已套用的修復。
+// RollbackFix reverts an applied fix.
 func (f *Fixer) RollbackFix(filePath string) error {
 	backupPath := filePath + ".sift.bak"
 	backup, err := os.ReadFile(backupPath)
 	if err != nil {
-		return fmt.Errorf("找不到備份檔案: %s", backupPath)
+		return fmt.Errorf("backup file not found: %s", backupPath)
 	}
 
 	if err := os.WriteFile(filePath, backup, 0o644); err != nil {
-		return fmt.Errorf("還原失敗: %w", err)
+		return fmt.Errorf("rollback failed: %w", err)
 	}
 
 	os.Remove(backupPath)
@@ -158,12 +158,12 @@ const fixerUserTemplate = `Fix this security issue:
 
 Generate the exact code fix (old → new).`
 
-// generateFix 使用 LLM 產生單一問題的修復。
+// generateFix uses LLM to generate a fix for a single issue.
 func (f *Fixer) generateFix(finding static.Finding) (string, error) {
-	// 讀取檔案內容（前後 5 行上下文）
+	// Read file content (5 lines of context before and after)
 	fileContent, err := os.ReadFile(finding.File)
 	if err != nil {
-		return "", fmt.Errorf("讀取檔案失敗: %w", err)
+		return "", fmt.Errorf("failed to read file: %w", err)
 	}
 
 	lines := strings.Split(string(fileContent), "\n")
@@ -184,15 +184,15 @@ func (f *Fixer) generateFix(finding static.Finding) (string, error) {
 	}
 
 	if strings.Contains(result, "NO_FIX_NEEDED") {
-		return "", fmt.Errorf("LLM 判斷此問題不需要修復")
+		return "", fmt.Errorf("LLM determined this issue does not need a fix")
 	}
 
 	return strings.TrimSpace(result), nil
 }
 
-// applyPatch 根據 LLM 產生的 diff 文字套用修復。
+// applyPatch applies the fix based on the diff text produced by the LLM.
 func applyPatch(original, patch string) (string, error) {
-	// 嘗試解析 diff 格式: - old\n+ new
+	// Try to parse diff format: - old\n+ new
 	lines := strings.Split(patch, "\n")
 	var oldCode, newCode string
 	inOld := false
@@ -209,28 +209,28 @@ func applyPatch(original, patch string) (string, error) {
 	}
 
 	if !inOld || !inNew {
-		// 不是標準 diff 格式，嘗試直接替換
-		return original, fmt.Errorf("無法解析修復格式")
+		// Not standard diff format, try direct replacement
+		return original, fmt.Errorf("unable to parse fix format")
 	}
 
 	oldCode = strings.TrimRight(oldCode, "\n")
 	newCode = strings.TrimRight(newCode, "\n")
 
 	if oldCode == "" {
-		return original, fmt.Errorf("空的舊程式碼")
+		return original, fmt.Errorf("empty old code")
 	}
 
-	// 執行替換
+	// Perform replacement
 	result := strings.Replace(original, oldCode, newCode, 1)
 	if result == original {
-		// 嘗試去除空白差異
+		// Try removing whitespace differences
 		oldTrimmed := strings.TrimSpace(oldCode)
 		idx := strings.Index(original, oldTrimmed)
 		if idx >= 0 {
 			result = original[:idx] + strings.TrimSpace(newCode) + original[idx+len(oldTrimmed):]
 			return result, nil
 		}
-		return original, fmt.Errorf("在原始檔案中找不到要替換的程式碼")
+		return original, fmt.Errorf("could not find the code to replace in the original file")
 	}
 
 	return result, nil
@@ -250,7 +250,7 @@ func min(a, b int) int {
 	return b
 }
 
-// CleanupBackups 清除專案中所有 .sift.bak 備份檔案。
+// CleanupBackups removes all .sift.bak backup files in the project.
 func CleanupBackups(root string) error {
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

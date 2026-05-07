@@ -11,17 +11,17 @@ import (
 
 const geminiBaseURL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 
-// GeminiClient 封裝 Google Gemini API（OpenAI 相容格式）。
+// GeminiClient wraps the Google Gemini API (OpenAI-compatible format).
 type GeminiClient struct {
 	apiKey string
 	model  string
 	client *http.Client
 }
 
-// NewGeminiClient 建立 Gemini API client。
+// NewGeminiClient creates a Gemini API client.
 func NewGeminiClient(apiKey, model string) (*GeminiClient, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("Gemini API key 未設定")
+		return nil, fmt.Errorf("Gemini API key not set")
 	}
 	if model == "" {
 		model = "gemini-3-flash-preview"
@@ -33,12 +33,12 @@ func NewGeminiClient(apiKey, model string) (*GeminiClient, error) {
 	}, nil
 }
 
-// Name 回傳 provider 名稱。
+// Name returns the provider name.
 func (c *GeminiClient) Name() string {
 	return "gemini"
 }
 
-// Chat 向 Gemini API 發送訊息並取得回應。
+// Chat sends a message to the Gemini API and returns the response.
 func (c *GeminiClient) Chat(ctx context.Context, systemPrompt, userMessage string) (string, error) {
 	messages := []openAIMessage{
 		{Role: "user", Content: userMessage},
@@ -56,12 +56,12 @@ func (c *GeminiClient) Chat(ctx context.Context, systemPrompt, userMessage strin
 
 	body, err := json.Marshal(req)
 	if err != nil {
-		return "", fmt.Errorf("序列化請求失敗: %w", err)
+		return "", fmt.Errorf("failed to serialize request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", geminiBaseURL, bytes.NewReader(body))
 	if err != nil {
-		return "", fmt.Errorf("建立請求失敗: %w", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -69,25 +69,25 @@ func (c *GeminiClient) Chat(ctx context.Context, systemPrompt, userMessage strin
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
-		return "", fmt.Errorf("API 請求失敗: %w", err)
+		return "", fmt.Errorf("API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("Gemini API 錯誤 (%d): 請確認 API Key 是否正確", resp.StatusCode)
+		return "", fmt.Errorf("Gemini API error (%d): please verify your API key is correct", resp.StatusCode)
 	}
 
 	var result openAIResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("解析回應失敗: %w", err)
+		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if result.Error != nil {
-		return "", fmt.Errorf("Gemini API 錯誤: %s", result.Error.Message)
+		return "", fmt.Errorf("Gemini API error: %s", result.Error.Message)
 	}
 
 	if len(result.Choices) == 0 {
-		return "", fmt.Errorf("Gemini 回傳空白回應")
+		return "", fmt.Errorf("Gemini returned an empty response")
 	}
 
 	return result.Choices[0].Message.Content, nil

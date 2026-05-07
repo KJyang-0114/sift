@@ -1,8 +1,8 @@
 rules:
   - id: sift.config-cors-wildcard
     message: |
-      [Config] CORS 設定為 wildcard (*)，允許任意來源。
-      請指定明確的允許來源清單。
+      [Config] CORS is set to wildcard (*), allowing any origin.
+      Specify an explicit allowlist of origins.
     severity: WARNING
     languages:
       - python
@@ -18,7 +18,7 @@ rules:
 
   - id: sift.config-env-file
     message: |
-      [Config] .env 檔案可能被部署時暴露。
+      [Config] .env file may be exposed during deployment.
     severity: MEDIUM
     languages:
       - python
@@ -30,7 +30,7 @@ rules:
 
   - id: sift.config-debug-mode
     message: |
-      [Config] DEBUG 模式可能啟用在 Production。
+      [Config] DEBUG mode may be enabled in production.
     severity: ERROR
     languages:
       - python

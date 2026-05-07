@@ -1,8 +1,8 @@
 rules:
   - id: sift.ssrf-http-request
     message: |
-      [SSRF] 使用者輸入直接傳入 HTTP 請求 URL，可能導致 Server-Side Request Forgery。
-      請驗證目標 URL 是否在白名單內，或阻擋內部 IP（127.0.0.1, 10.x, 192.168.x）。
+      [SSRF] User input is passed directly to an HTTP request URL, which may lead to Server-Side Request Forgery.
+      Validate that the target URL is in an allowlist, or block internal IPs (127.0.0.1, 10.x, 192.168.x).
     severity: ERROR
     languages:
       - python
@@ -27,7 +27,7 @@ rules:
 
   - id: sift.ssrf-url-construction
     message: |
-      [SSRF] URL 由使用者輸入拼接而成，攻擊者可控制請求目標。
+      [SSRF] URL is constructed from user input; attackers can control the request target.
     severity: WARNING
     languages:
       - python

@@ -10,7 +10,7 @@ import (
 	"golang.org/x/term"
 )
 
-// 終端顏色碼
+// Terminal color codes
 const (
 	colorReset  = "\033[0m"
 	colorRed    = "\033[31m"
@@ -31,7 +31,7 @@ var severityIcon = map[static.Severity]string{
 	static.SeverityInfo:     "⚪",
 }
 
-// RenderTerminal 以彩色終端格式輸出掃描報告。
+// RenderTerminal outputs the scan report in color terminal format.
 func RenderTerminal(findings []static.Finding, target string, duration time.Duration) {
 	width := 80
 	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w < width {
@@ -56,7 +56,7 @@ func RenderTerminal(findings []static.Finding, target string, duration time.Dura
 		return
 	}
 
-	// 摘要列
+	// Summary line
 	summary := fmt.Sprintf("  %s Critical: %d  %s High: %d  %s Medium: %d  %s Low: %d  %s Info: %d",
 		severityIcon[static.SeverityCritical], critical,
 		severityIcon[static.SeverityHigh], high,
@@ -68,7 +68,7 @@ func RenderTerminal(findings []static.Finding, target string, duration time.Dura
 	printBar(width)
 	fmt.Println()
 
-	// 按嚴重度排序輸出
+	// Output sorted by severity
 	order := []static.Severity{static.SeverityCritical, static.SeverityHigh, static.SeverityMedium, static.SeverityLow, static.SeverityInfo}
 
 	displayed := 0
@@ -125,7 +125,7 @@ func printBar(width int) {
 }
 
 func printLine(width int, text string) {
-	// 去掉 ANSI 碼計算長度
+	// Strip ANSI codes to calculate visible length
 	clean := stripANSI(text)
 	padding := width - len(clean)
 	if padding < 0 {

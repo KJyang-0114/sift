@@ -11,7 +11,7 @@ import (
 
 const openRouterBaseURL = "https://openrouter.ai/api/v1/chat/completions"
 
-// OpenRouterClient 封裝 OpenRouter API（相容 OpenAI 格式）。
+// OpenRouterClient wraps the OpenRouter API (OpenAI-compatible format).
 type OpenRouterClient struct {
 	apiKey string
 	model  string
@@ -32,10 +32,10 @@ type openRouterResponse struct {
 	} `json:"error,omitempty"`
 }
 
-// NewOpenRouterClient 建立 OpenRouter API client。
+// NewOpenRouterClient creates an OpenRouter API client.
 func NewOpenRouterClient(apiKey, model string) (*OpenRouterClient, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("OpenRouter API key 未設定。請執行 sift init 或設定 SIFT_LLM_API_KEY 環境變數")
+		return nil, fmt.Errorf("OpenRouter API key not set. Run sift init or set the SIFT_LLM_API_KEY environment variable")
 	}
 	if model == "" {
 		model = "anthropic/claude-sonnet-4.6"
@@ -47,12 +47,12 @@ func NewOpenRouterClient(apiKey, model string) (*OpenRouterClient, error) {
 	}, nil
 }
 
-// Name 回傳 provider 名稱。
+// Name returns the provider name.
 func (c *OpenRouterClient) Name() string {
 	return "openrouter"
 }
 
-// Chat 向 OpenRouter API 發送訊息並取得回應。
+// Chat sends a message to the OpenRouter API and returns the response.
 func (c *OpenRouterClient) Chat(ctx context.Context, systemPrompt, userMessage string) (string, error) {
 	messages := []openAIMessage{
 		{Role: "user", Content: userMessage},
@@ -70,12 +70,12 @@ func (c *OpenRouterClient) Chat(ctx context.Context, systemPrompt, userMessage s
 
 	body, err := json.Marshal(req)
 	if err != nil {
-		return "", fmt.Errorf("序列化請求失敗: %w", err)
+		return "", fmt.Errorf("failed to serialize request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", openRouterBaseURL, bytes.NewReader(body))
 	if err != nil {
-		return "", fmt.Errorf("建立請求失敗: %w", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -85,25 +85,25 @@ func (c *OpenRouterClient) Chat(ctx context.Context, systemPrompt, userMessage s
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
-		return "", fmt.Errorf("API 請求失敗: %w", err)
+		return "", fmt.Errorf("API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("API 錯誤 (%d): 請確認 API Key 是否正確", resp.StatusCode)
+		return "", fmt.Errorf("API error (%d): please verify your API key is correct", resp.StatusCode)
 	}
 
 	var result openRouterResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("解析回應失敗: %w", err)
+		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if result.Error != nil {
-		return "", fmt.Errorf("OpenRouter API 錯誤: %s", result.Error.Message)
+		return "", fmt.Errorf("OpenRouter API error: %s", result.Error.Message)
 	}
 
 	if len(result.Choices) == 0 {
-		return "", fmt.Errorf("OpenRouter 回傳空白回應")
+		return "", fmt.Errorf("OpenRouter returned an empty response")
 	}
 
 	return result.Choices[0].Message.Content, nil

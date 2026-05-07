@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// Result 是沙盒執行一次程式碼的結果。
+// Result is the outcome of a single code execution in the sandbox.
 type Result struct {
 	Stdout   string        `json:"stdout"`
 	Stderr   string        `json:"stderr"`
@@ -21,14 +21,14 @@ type Result struct {
 	Error    string        `json:"error,omitempty"`
 }
 
-// Orbital 是零外部依賴的輕量級程式碼隔離執行器。
+// Orbital is a lightweight code isolation executor with zero external dependencies.
 type Orbital struct {
 	timeout      time.Duration
 	maxOutputLen int
 	workDir      string
 }
 
-// NewOrbital 建立 Orbital 沙盒。
+// NewOrbital creates an Orbital sandbox.
 func NewOrbital(timeout time.Duration) *Orbital {
 	return &Orbital{
 		timeout:      timeout,
@@ -36,35 +36,35 @@ func NewOrbital(timeout time.Duration) *Orbital {
 	}
 }
 
-// Run 在隔離環境中執行程式碼。
-// lang 可以是 "python", "javascript", "go", "bash"。
+// Run executes code in an isolated environment.
+// lang can be "python", "javascript", "go", or "bash".
 func (o *Orbital) Run(code, lang string) (*Result, error) {
-	// 建立獨立工作目錄
+	// Create isolated working directory
 	workDir, err := os.MkdirTemp("", "sift-sandbox-*")
 	if err != nil {
-		return nil, fmt.Errorf("建立沙盒目錄失敗: %w", err)
+		return nil, fmt.Errorf("failed to create sandbox directory: %w", err)
 	}
 	defer os.RemoveAll(workDir)
 
-	// 寫入程式碼檔案
+	// Write code file
 	filePath, err := o.writeCodeFile(workDir, code, lang)
 	if err != nil {
 		return nil, err
 	}
 
-	// 建立執行指令
+	// Build execution command
 	cmd := o.buildCommand(filePath, lang)
 	if cmd == nil {
-		return nil, fmt.Errorf("不支援的語言: %s", lang)
+		return nil, fmt.Errorf("unsupported language: %s", lang)
 	}
 
-	// 設定 process group（讓 subprocess 可以被 kill）
+	// Set process group (so subprocesses can be killed)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
 	}
 	cmd.Dir = workDir
 
-	// 設定環境變數隔離
+	// Set isolated environment variables
 	cmd.Env = []string{
 		"PATH=" + os.Getenv("PATH"),
 		"HOME=" + workDir,
@@ -74,7 +74,7 @@ func (o *Orbital) Run(code, lang string) (*Result, error) {
 
 	start := time.Now()
 
-	// 以 context timeout 限制執行時間
+	// Limit execution time with context timeout
 	ctx, cancel := context.WithTimeout(context.Background(), o.timeout)
 	defer cancel()
 
@@ -88,7 +88,7 @@ func (o *Orbital) Run(code, lang string) (*Result, error) {
 		"LANG=en_US.UTF-8",
 	}
 
-	// 擷取輸出
+	// Capture output
 	stdout := &limitedBuffer{max: o.maxOutputLen}
 	stderr := &limitedBuffer{max: o.maxOutputLen}
 	cmd.Stdout = stdout
@@ -105,16 +105,16 @@ func (o *Orbital) Run(code, lang string) (*Result, error) {
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			result.TimedOut = true
-			result.Error = fmt.Sprintf("執行超時 (限制: %v)", o.timeout)
+			result.Error = fmt.Sprintf("execution timed out (limit: %v)", o.timeout)
 			killProcess(cmd)
 			return result, nil
 		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
-			result.Error = fmt.Sprintf("執行失敗 (exit code: %d)", result.ExitCode)
+			result.Error = fmt.Sprintf("execution failed (exit code: %d)", result.ExitCode)
 			return result, nil
 		}
-		result.Error = fmt.Sprintf("執行失敗: %v", err)
+		result.Error = fmt.Sprintf("execution failed: %v", err)
 		return result, nil
 	}
 
@@ -122,7 +122,7 @@ func (o *Orbital) Run(code, lang string) (*Result, error) {
 	return result, nil
 }
 
-// writeCodeFile 將程式碼寫入對應語言的檔案。
+// writeCodeFile writes code to a file with the appropriate extension for the language.
 func (o *Orbital) writeCodeFile(dir, code, lang string) (string, error) {
 	var filename string
 	switch lang {
@@ -140,19 +140,19 @@ func (o *Orbital) writeCodeFile(dir, code, lang string) (string, error) {
 
 	path := filepath.Join(dir, filename)
 	if err := os.WriteFile(path, []byte(code), 0o644); err != nil {
-		return "", fmt.Errorf("寫入程式碼檔案失敗: %w", err)
+		return "", fmt.Errorf("failed to write code file: %w", err)
 	}
 
 	return path, nil
 }
 
-// buildCommand 根據語言建立對應的執行指令。
+// buildCommand builds the appropriate execution command for the given language.
 func (o *Orbital) buildCommand(filePath, lang string) *exec.Cmd {
 	switch lang {
 	case "python":
 		return exec.Command("python3", filePath)
 	case "javascript":
-		// 優先使用 node
+		// Prefer node
 		return exec.Command("node", filePath)
 	case "go":
 		return exec.Command("go", "run", filePath)
@@ -163,7 +163,7 @@ func (o *Orbital) buildCommand(filePath, lang string) *exec.Cmd {
 	}
 }
 
-// Available 檢查特定語言的執行環境是否可用。
+// Available checks whether the execution environment for a given language is available.
 func Available(lang string) bool {
 	switch lang {
 	case "python":
@@ -185,7 +185,7 @@ func commandExists(name string) bool {
 
 func killProcess(cmd *exec.Cmd) {
 	if cmd.Process != nil {
-		// 用負 PID kill 整個 process group
+		// Use negative PID to kill the entire process group
 		pgid, err := syscall.Getpgid(cmd.Process.Pid)
 		if err == nil {
 			syscall.Kill(-pgid, syscall.SIGKILL)
@@ -195,7 +195,7 @@ func killProcess(cmd *exec.Cmd) {
 	}
 }
 
-// limitedBuffer 限制最大輸出長度的 buffer。
+// limitedBuffer is a buffer that limits the maximum output length.
 type limitedBuffer struct {
 	buf strings.Builder
 	max int

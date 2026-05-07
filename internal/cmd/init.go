@@ -20,14 +20,14 @@ func newInitCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "init",
-		Short: "執行初次設定精靈",
-		Long: `init 會引導你完成初次設定：選擇 LLM Provider、輸入 API Key、以及預設模型。
-整個過程最多三個問題，完成後即可開始掃描。`,
+		Short: "Run the initial setup wizard",
+		Long: `init guides you through first-time setup: choose an LLM provider, enter your API key,
+	and set the default model. At most three questions — ready to scan when done.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.Default()
 
 			if nonInteractive {
-				// 非互動模式：從 flag 或環境變數讀取
+				// Non-interactive mode: read from flags or environment variables
 				if provider != "" {
 					cfg.LLM.Provider = config.LLMProvider(provider)
 				}
@@ -41,22 +41,22 @@ func newInitCmd() *cobra.Command {
 				runWizard(cfg)
 			}
 
-			// 寫入設定檔
+			// Write config file
 			path, err := config.Save(cfg)
 			if err != nil {
-				return fmt.Errorf("無法儲存設定: %w", err)
+				return fmt.Errorf("cannot save config: %w", err)
 			}
 
-			fmt.Printf("\n  ✅ 設定已儲存至 %s\n", path)
-			fmt.Println("  ✅ 準備就緒！執行: sift scan .")
+			fmt.Printf("\n  ✅ Config saved to %s\n", path)
+			fmt.Println("  ✅ Ready! Run: sift scan .")
 			return nil
 		},
 	}
 
 	cmd.Flags().StringVar(&provider, "provider", "", "LLM provider (anthropic|openai|openrouter|ollama)")
 	cmd.Flags().StringVar(&apiKey, "api-key", "", "LLM API Key")
-	cmd.Flags().StringVar(&model, "model", "", "預設模型")
-	cmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "非互動模式 (CI/CD 使用)")
+	cmd.Flags().StringVar(&model, "model", "", "default model")
+	cmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "non-interactive mode (for CI/CD)")
 
 	return cmd
 }
@@ -70,14 +70,14 @@ func runWizard(cfg *config.Config) {
 	fmt.Println()
 
 	// Q1: Provider
-	fmt.Println("  請選擇 LLM Provider:")
+	fmt.Println("  Select LLM Provider:")
 	fmt.Println("    [1] Anthropic (Claude)")
 	fmt.Println("    [2] OpenAI (GPT-4o/GPT-5)")
 	fmt.Println("    [3] Google Gemini")
-	fmt.Println("    [4] OpenRouter (多模型)")
-	fmt.Println("    [5] SiliconFlow (DeepSeek 等)")
-	fmt.Println("    [6] Ollama (本機, 免費)")
-	fmt.Println("    [7] 稍後設定 (離線模式, 僅 Semgrep)")
+	fmt.Println("    [4] OpenRouter (multi-model)")
+	fmt.Println("    [5] SiliconFlow (DeepSeek etc.)")
+	fmt.Println("    [6] Ollama (local, free)")
+	fmt.Println("    [7] Configure later (offline mode, Semgrep only)")
 	fmt.Println()
 	fmt.Print("  > ")
 
@@ -99,8 +99,8 @@ func runWizard(cfg *config.Config) {
 		cfg.LLM.Provider = config.ProviderOllama
 	case "7":
 		cfg.LLM.Provider = config.ProviderOffline
-		fmt.Println("\n  ℹ️  離線模式：僅使用 Semgrep 靜態規則掃描。")
-		fmt.Printf("\n  ℹ️  離線模式：僅使用 Semgrep 靜態規則掃描。\n")
+		fmt.Println("\n  ℹ️  Offline mode: Semgrep static rules only.")
+		fmt.Printf("\n  ℹ️  Offline mode: Semgrep static rules only.\n")
 	}
 	fmt.Println()
 
@@ -113,7 +113,7 @@ func runWizard(cfg *config.Config) {
 
 		// Q3: Model
 		defaultModel := cfg.LLM.DefaultModel()
-		fmt.Printf("  預設模型 [%s]: ", defaultModel)
+		fmt.Printf("  Default model [%s]: ", defaultModel)
 		model, _ := reader.ReadString('\n')
 		model = strings.TrimSpace(model)
 		if model == "" {
@@ -123,7 +123,7 @@ func runWizard(cfg *config.Config) {
 	}
 
 	if cfg.LLM.Provider == config.ProviderOllama {
-		fmt.Print("  Ollama 模型名稱 [llama3]: ")
+		fmt.Print("  Ollama model name [llama3]: ")
 		model, _ := reader.ReadString('\n')
 		model = strings.TrimSpace(model)
 		if model == "" {

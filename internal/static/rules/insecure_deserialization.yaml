@@ -1,8 +1,8 @@
 rules:
   - id: sift.insecure-deserialization
     message: |
-      [Insecure Deserialization] 使用了不安全的反序列化函數。
-      pickle/yaml.load 可以執行任意程式碼，請改用安全的替代方案 (json, yaml.safe_load)。
+      [Insecure Deserialization] Use of unsafe deserialization functions detected.
+      pickle/yaml.load can execute arbitrary code; use safe alternatives instead (json, yaml.safe_load).
     severity: ERROR
     languages:
       - python

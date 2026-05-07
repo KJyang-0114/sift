@@ -1,8 +1,8 @@
 rules:
   - id: sift.error-stack-trace-leak
     message: |
-      [Error Handling] 錯誤訊息直接回傳客戶端，可能洩漏內部資訊。
-      Production 中應僅記錄到 log，回傳 generic error。
+      [Error Handling] Error messages returned directly to the client may leak internal information.
+      In production, log errors only and return a generic error response.
     severity: WARNING
     languages:
       - python
@@ -17,7 +17,7 @@ rules:
 
   - id: sift.error-unhandled-rejection
     message: |
-      [Reliability] 未捕獲的 Promise rejection 可能導致程序崩潰。
+      [Reliability] Unhandled Promise rejections may cause the process to crash.
     severity: INFO
     languages:
       - javascript

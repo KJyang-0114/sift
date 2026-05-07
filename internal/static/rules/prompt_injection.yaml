@@ -1,8 +1,8 @@
 rules:
   - id: sift.prompt-injection-risk
     message: |
-      [Prompt Injection] 使用者輸入直接傳入 LLM API 調用。
-      請在 prompt 中分離使用者輸入與系統指令。
+      [Prompt Injection] User input is passed directly to an LLM API call.
+      Separate user input from system instructions in the prompt.
     severity: WARNING
     languages:
       - python

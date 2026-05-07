@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-// LLMProvider 定義支援的 LLM 平台。
+// LLMProvider defines supported LLM platforms.
 type LLMProvider string
 
 const (
@@ -20,34 +20,34 @@ const (
 	ProviderOffline     LLMProvider = "offline"
 )
 
-// Config 是 Sift 的完整設定結構。
+// Config is the complete configuration structure for Sift.
 type Config struct {
 	LLM    LLMConfig    `toml:"llm"`
 	Scan   ScanConfig   `toml:"scan"`
 	Output OutputConfig `toml:"output"`
 }
 
-// LLMConfig 定義 LLM 連線設定。
+// LLMConfig defines LLM connection settings.
 type LLMConfig struct {
 	Provider LLMProvider `toml:"provider"`
 	APIKey   string      `toml:"api_key"`
 	Model    string      `toml:"model"`
 }
 
-// ScanConfig 定義掃描行為設定。
+// ScanConfig defines scan behavior settings.
 type ScanConfig struct {
 	Timeout     int    `toml:"timeout"`
 	Concurrency int    `toml:"concurrency"`
 	Sandbox     string `toml:"sandbox"`
 }
 
-// OutputConfig 定義輸出設定。
+// OutputConfig defines output settings.
 type OutputConfig struct {
 	Format string `toml:"format"`
 	Color  bool   `toml:"color"`
 }
 
-// Default 回傳預設設定。
+// Default returns the default configuration.
 func Default() *Config {
 	return &Config{
 		LLM: LLMConfig{
@@ -57,7 +57,7 @@ func Default() *Config {
 		Scan: ScanConfig{
 			Timeout:     120,
 			Concurrency: 4,
-			Sandbox:     "orbital", // 唯一支援的沙盒模式
+			Sandbox:     "orbital", // The only supported sandbox mode
 		},
 		Output: OutputConfig{
 			Format: "terminal",
@@ -66,7 +66,7 @@ func Default() *Config {
 	}
 }
 
-// DefaultModel 根據 provider 回傳對應的預設模型。
+// DefaultModel returns the default model for the given provider.
 func (l *LLMConfig) DefaultModel() string {
 	switch l.Provider {
 	case ProviderAnthropic:
@@ -88,16 +88,16 @@ func (l *LLMConfig) DefaultModel() string {
 	}
 }
 
-// ConfigDir 回傳設定目錄路徑。
+// ConfigDir returns the configuration directory path.
 func ConfigDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("無法取得使用者目錄: %w", err)
+		return "", fmt.Errorf("unable to get home directory: %w", err)
 	}
 	return filepath.Join(home, ".sift"), nil
 }
 
-// ConfigPath 回傳設定檔完整路徑。
+// ConfigPath returns the full path to the config file.
 func ConfigPath() (string, error) {
 	dir, err := ConfigDir()
 	if err != nil {

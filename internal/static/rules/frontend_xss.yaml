@@ -1,8 +1,8 @@
 rules:
   - id: sift.frontend-dangerouslySetInnerHTML
     message: |
-      [XSS] dangerouslySetInnerHTML 直接渲染使用者輸入，可能導致 XSS。
-      請使用 DOMPurify 或避免直接插入 HTML。
+      [XSS] dangerouslySetInnerHTML renders user input directly, which may lead to XSS.
+      Use DOMPurify or avoid injecting raw HTML directly.
     severity: ERROR
     languages:
       - javascript
@@ -15,8 +15,8 @@ rules:
 
   - id: sift.frontend-innerHTML
     message: |
-      [XSS] innerHTML/outerHTML/document.write 可能插入惡意腳本。
-      請改用 textContent 或先做 sanitize。
+      [XSS] innerHTML/outerHTML/document.write may inject malicious scripts.
+      Use textContent instead or sanitize input first.
     severity: WARNING
     languages:
       - javascript
@@ -31,7 +31,7 @@ rules:
 
   - id: sift.frontend-eval
     message: |
-      [XSS] eval() 可執行任意 JavaScript。
+      [XSS] eval() can execute arbitrary JavaScript.
     severity: ERROR
     languages:
       - javascript
@@ -44,8 +44,8 @@ rules:
 
   - id: sift.frontend-localStorage
     message: |
-      [Security] localStorage 不應存放敏感資料（Token、密碼）。
-      請改用 httpOnly Cookie。
+      [Security] localStorage should not store sensitive data (tokens, passwords).
+      Use httpOnly cookies instead.
     severity: WARNING
     languages:
       - javascript
@@ -60,7 +60,7 @@ rules:
 
   - id: sift.frontend-open-redirect
     message: |
-      [Security] window.location 使用使用者可控的 URL 可能導致 Open Redirect。
+      [Security] window.location using a user-controllable URL may lead to open redirect.
     severity: WARNING
     languages:
       - javascript

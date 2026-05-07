@@ -1,8 +1,8 @@
 rules:
   - id: sift.jwt-none-algorithm
     message: |
-      [JWT Security] 未強制指定 JWT 驗證演算法，攻擊者可能使用 "none" 演算法繞過簽章驗證。
-      請在 jwt.verify() 中明確指定 algorithms 參數。
+      [JWT Security] JWT verification algorithm is not explicitly enforced; attackers may use the "none" algorithm to bypass signature verification.
+      Explicitly specify the algorithms parameter in jwt.verify().
     severity: ERROR
     languages:
       - javascript
@@ -19,8 +19,8 @@ rules:
 
   - id: sift.jwt-hardcoded-secret
     message: |
-      [JWT Security] JWT Secret 硬編碼在程式碼中。
-      請使用環境變數，並確保 Secret 強度足夠（>=256 bits）。
+      [JWT Security] JWT secret is hardcoded in the source code.
+      Use environment variables and ensure the secret is sufficiently strong (>= 256 bits).
     severity: ERROR
     languages:
       - javascript
@@ -37,8 +37,8 @@ rules:
 
   - id: sift.jwt-no-expiration
     message: |
-      [JWT Security] JWT Token 未設定過期時間 (exp)。
-      永不失效的 Token 若外洩將造成永久性安全漏洞。
+      [JWT Security] JWT token has no expiration time (exp) set.
+      A non-expiring token, if leaked, creates a permanent security vulnerability.
     severity: WARNING
     languages:
       - javascript

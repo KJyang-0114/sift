@@ -1,8 +1,8 @@
 rules:
   - id: sift.xss-reflected-output
     message: |
-      [XSS] 使用者輸入直接寫入 HTTP 回應。
-      請做 HTML Entity 編碼或使用安全的模板引擎。
+      [XSS] User input is written directly to the HTTP response.
+      Use HTML entity encoding or a secure template engine.
     severity: ERROR
     languages:
       - python
