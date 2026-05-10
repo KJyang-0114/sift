@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/KJyang-0114/sift/internal/securepath"
 )
 
 // SemgrepAnalyzer uses the semgrep CLI to perform static analysis.
@@ -127,8 +129,12 @@ func (s *SemgrepAnalyzer) Analyze(target string) ([]Finding, error) {
 		"--exclude", "dist",
 		"--exclude", "target",
 		"--exclude", ".git",
-		target,
 	}
+
+	// Append each target file as a separate positional argument.
+	// When diff mode is active, target is a comma-separated list of paths.
+	targets := splitCommaTargets(target)
+	args = append(args, targets...)
 
 	cmd := exec.Command(semgrepPath, args...)
 	cmd.Stderr = os.Stderr
@@ -142,7 +148,7 @@ func (s *SemgrepAnalyzer) Analyze(target string) ([]Finding, error) {
 	}
 
 	// Parse semgrep JSON output
-	findings, err := parseSemgrepOutput(output)
+	findings, err := parseSemgrepOutput(output, target)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse semgrep output: %w", err)
 	}
@@ -241,7 +247,7 @@ type semgrepError struct {
 	Path    string `json:"path"`
 }
 
-func parseSemgrepOutput(output []byte) ([]Finding, error) {
+func parseSemgrepOutput(output []byte, baseDir string) ([]Finding, error) {
 	var result semgrepResult
 	if err := json.Unmarshal(output, &result); err != nil {
 		return nil, err
@@ -257,7 +263,7 @@ func parseSemgrepOutput(output []byte) ([]Finding, error) {
 		}
 		// When Semgrep OSS does not return code, read it from source
 		if code == "" || code == "requires login" {
-			code = readLineFromFile(r.Path, r.Start.Line)
+			code = readLineFromFile(baseDir, r.Path, r.Start.Line)
 		}
 
 		findings = append(findings, Finding{
@@ -278,8 +284,8 @@ func parseSemgrepOutput(output []byte) ([]Finding, error) {
 	return findings, nil
 }
 
-func readLineFromFile(path string, lineNum int) string {
-	data, err := os.ReadFile(path)
+func readLineFromFile(baseDir, path string, lineNum int) string {
+	data, err := securepath.ReadFile(baseDir, path)
 	if err != nil {
 		return ""
 	}
@@ -288,6 +294,26 @@ func readLineFromFile(path string, lineNum int) string {
 		return strings.TrimSpace(lines[lineNum-1])
 	}
 	return ""
+}
+
+// splitCommaTargets splits a comma-separated target string into individual paths.
+// When the target is a single directory or file (no commas), it returns a single-element slice.
+// When the target contains commas (diff mode), each element is trimmed and empty strings are filtered.
+func splitCommaTargets(target string) []string {
+	if !strings.Contains(target, ",") {
+		return []string{target}
+	}
+	var result []string
+	for _, t := range strings.Split(target, ",") {
+		t = strings.TrimSpace(t)
+		if t != "" {
+			result = append(result, t)
+		}
+	}
+	if len(result) == 0 {
+		return []string{target}
+	}
+	return result
 }
 
 func mapSemgrepSeverity(s string) Severity {

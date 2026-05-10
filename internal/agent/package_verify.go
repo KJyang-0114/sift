@@ -37,33 +37,37 @@ type DepFile struct {
 }
 
 // Analyze scans all dependency files in the target directory and verifies that packages exist.
+// When target contains commas (diff mode), each entry is processed individually.
 func (pv *PackageVerifier) Analyze(target string) ([]static.Finding, error) {
 	var allFindings []static.Finding
 
-	depFiles, err := pv.findDepFiles(target)
-	if err != nil {
-		return nil, fmt.Errorf("failed to locate dependency files: %w", err)
-	}
-
-	for _, df := range depFiles {
-		for _, pkg := range df.Packages {
-			exists, err := pv.verifyPackage(df.Ecosystem, pkg)
-			if err != nil {
-				// Skip on network errors, do not block the scan
-				continue
-			}
-			if !exists && !isCommonTypo(pkg) {
-				allFindings = append(allFindings, static.Finding{
-					ID:       "sift.hallucinated-package",
-					Rule:     "sift.hallucinated-package",
-					Message:  fmt.Sprintf("[Hallucinated Package] \"%s\" does not exist in the %s registry. This may be an AI hallucination or typo-squatting attack.", pkg, df.Ecosystem),
-					Severity: static.SeverityCritical,
-					Category: "security",
-					File:     df.Path,
-					Line:     0,
-					Column:   0,
-					Code:     pkg,
-				})
+	targets := splitTargets(target)
+	for _, t := range targets {
+		depFiles, err := pv.findDepFiles(t)
+		if err != nil {
+			// Skip individual target errors in diff mode
+			continue
+		}
+		for _, df := range depFiles {
+			for _, pkg := range df.Packages {
+				exists, err := pv.verifyPackage(df.Ecosystem, pkg)
+				if err != nil {
+					// Skip on network errors, do not block the scan
+					continue
+				}
+				if !exists && !isCommonTypo(pkg) {
+					allFindings = append(allFindings, static.Finding{
+						ID:       "sift.hallucinated-package",
+						Rule:     "sift.hallucinated-package",
+						Message:  fmt.Sprintf("[Hallucinated Package] \"%s\" does not exist in the %s registry. This may be an AI hallucination or typo-squatting attack.", pkg, df.Ecosystem),
+						Severity: static.SeverityCritical,
+						Category: "security",
+						File:     df.Path,
+						Line:     0,
+						Column:   0,
+						Code:     pkg,
+					})
+				}
 			}
 		}
 	}
@@ -349,4 +353,23 @@ func parseGoMod(path string) []string {
 		}
 	}
 	return pkgs
+}
+
+// splitTargets splits a comma-separated target string into individual paths.
+// Used to handle diff mode where targets are passed as a comma-separated list.
+func splitTargets(target string) []string {
+	if !strings.Contains(target, ",") {
+		return []string{target}
+	}
+	var result []string
+	for _, t := range strings.Split(target, ",") {
+		t = strings.TrimSpace(t)
+		if t != "" {
+			result = append(result, t)
+		}
+	}
+	if len(result) == 0 {
+		return []string{target}
+	}
+	return result
 }

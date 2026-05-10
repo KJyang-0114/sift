@@ -26,13 +26,14 @@ type Orchestrator struct {
 	lastFindings     []static.Finding
 	fileCache        *cache.FileCache
 	dbStore          *store.Store
-	pool             *WorkerPool
-	diffMode         bool
+	pool     *WorkerPool
+	diffRef  string // non-empty when diff mode is active
 }
 
-// SetDiffMode enables diff mode, scanning only git-changed files.
-func (o *Orchestrator) SetDiffMode(enabled bool) {
-	o.diffMode = enabled
+// SetDiffMode enables diff mode with the given git ref, scanning only git-changed files.
+// The ref can be "HEAD" (unstaged+staged), "HEAD~1" (changes since last commit), or a branch name.
+func (o *Orchestrator) SetDiffMode(ref string) {
+	o.diffRef = ref
 }
 
 // NewOrchestrator creates a scan orchestrator.
@@ -82,10 +83,11 @@ func (o *Orchestrator) Run(target string, format string) error {
 	verbose := format != "json" && format != "sarif"
 
 	// diff mode: only scan git-changed files
-	if o.diffMode {
-		changed, err := gitChangedFiles(target)
+	if o.diffRef != "" {
+		changed, err := gitChangedFiles(target, o.diffRef)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "  ⚠️  unable to get git diff: %v\n", err)
+			// fall through to full scan
 		} else if len(changed) == 0 {
 			if verbose {
 				fmt.Println("  ✅ no changed files to scan")
@@ -93,8 +95,9 @@ func (o *Orchestrator) Run(target string, format string) error {
 			return nil
 		} else {
 			if verbose {
-				fmt.Printf("  📋 diff mode: %d changed file(s)\n", len(changed))
+				fmt.Printf("  📋 diff mode (ref=%s): %d changed file(s)\n", o.diffRef, len(changed))
 			}
+			target = strings.Join(changed, ",")
 		}
 	}
 
@@ -201,13 +204,29 @@ func (o *Orchestrator) LastFindings() []static.Finding {
 	return o.lastFindings
 }
 
-// gitChangedFiles returns the list of changed files in the git working tree.
-func gitChangedFiles(repoPath string) ([]string, error) {
-	cmd := exec.Command("git", "-C", repoPath, "diff", "--name-only", "HEAD")
-	out, err := cmd.Output()
-	if err != nil {
-		// Try staged diff
-		cmd = exec.Command("git", "-C", repoPath, "diff", "--name-only", "--staged")
+// gitChangedFiles returns the list of files changed relative to the given git ref.
+// If ref is "HEAD", returns both unstaged and staged changes vs HEAD.
+func gitChangedFiles(repoPath, ref string) ([]string, error) {
+	var out []byte
+	var err error
+
+	if ref == "HEAD" {
+		// For HEAD: combine unstaged + staged diff
+		out, err = exec.Command("git", "-C", repoPath, "diff", "--name-only", "HEAD", "--", ".").Output()
+		if err != nil {
+			return nil, err
+		}
+		stagedOut, stagedErr := exec.Command("git", "-C", repoPath, "diff", "--name-only", "--staged", "--", ".").Output()
+		if stagedErr == nil {
+			if len(out) > 0 && len(stagedOut) > 0 {
+				out = append(out, '\n')
+				out = append(out, stagedOut...)
+			} else if len(stagedOut) > 0 {
+				out = stagedOut
+			}
+		}
+	} else {
+		cmd := exec.Command("git", "-C", repoPath, "diff", "--name-only", ref, "--", ".")
 		out, err = cmd.Output()
 		if err != nil {
 			return nil, err

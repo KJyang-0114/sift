@@ -57,7 +57,7 @@ func newFixCmd() *cobra.Command {
 				return nil
 			}
 
-			fixer, err := agent.NewFixer(cfg)
+			fixer, err := agent.NewFixer(cfg, target)
 			if err != nil {
 				return fmt.Errorf("cannot initialize fixer: %w", err)
 			}

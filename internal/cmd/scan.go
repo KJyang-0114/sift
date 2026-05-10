@@ -16,7 +16,7 @@ func newScanCmd() *cobra.Command {
 		format   string
 		sandbox  string
 		timeout  int
-		diffMode bool
+		diffRef string
 	)
 
 	cmd := &cobra.Command{
@@ -66,8 +66,8 @@ func newScanCmd() *cobra.Command {
 			}
 
 			orch := scan.NewOrchestrator(cfg)
-			if diffMode {
-				orch.SetDiffMode(true)
+			if cmd.Flags().Changed("diff") {
+				orch.SetDiffMode(diffRef)
 			}
 			if err := orch.Run(absTarget, cfg.Output.Format); err != nil {
 				os.Exit(1)
@@ -80,7 +80,8 @@ func newScanCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&format, "format", "f", "terminal", "output format (terminal|json|sarif|llm)")
 	cmd.Flags().StringVar(&sandbox, "sandbox", "orbital", "sandbox mode (orbital)")
 	cmd.Flags().IntVarP(&timeout, "timeout", "t", 120, "max scan seconds per file")
-	cmd.Flags().BoolVar(&diffMode, "diff", false, "scan changed files only (git diff)")
+	cmd.Flags().StringVar(&diffRef, "diff", "", "scan changed files only (optional git ref, default: HEAD)")
+	cmd.Flags().Lookup("diff").NoOptDefVal = "HEAD"
 
 	return cmd
 }

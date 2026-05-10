@@ -9,14 +9,17 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/KJyang-0114/sift/internal/securepath"
 )
 
 // FileCache provides SHA256-based file change detection for incremental scanning.
 // Enterprise feature: only scans files changed since last run, dramatically reducing repeat scan time.
 type FileCache struct {
-	mu       sync.RWMutex
-	entries  map[string]*CacheEntry `json:"entries"`
-	path     string
+	mu          sync.RWMutex
+	entries     map[string]*CacheEntry `json:"entries"`
+	path        string
+	projectRoot string
 }
 
 // CacheEntry records the cached state of a single file.
@@ -38,12 +41,13 @@ func NewFileCache(projectRoot string) (*FileCache, error) {
 
 	cachePath := filepath.Join(cacheDir, "cache.json")
 	fc := &FileCache{
-		entries: make(map[string]*CacheEntry),
-		path:    cachePath,
+		entries:     make(map[string]*CacheEntry),
+		path:        cachePath,
+		projectRoot: projectRoot,
 	}
 
-	// Try loading existing cache
-	data, err := os.ReadFile(cachePath)
+	// Try loading existing cache (validated against project root)
+	data, err := securepath.ReadFile(projectRoot, cachePath)
 	if err == nil {
 		json.Unmarshal(data, &fc.entries)
 	}
@@ -169,7 +173,7 @@ func (fc *FileCache) Purge() error {
 
 // hashFile computes the SHA256 hash of a file.
 func (fc *FileCache) hashFile(path string) (string, error) {
-	data, err := os.ReadFile(path)
+	data, err := securepath.ReadFile(fc.projectRoot, path)
 	if err != nil {
 		return "", err
 	}
