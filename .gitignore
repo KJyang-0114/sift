@@ -1,5 +1,5 @@
-# Sift
-sift
+# Sift binary (root only)
+/sift
 dist/
 
 # IDE
