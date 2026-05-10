@@ -71,8 +71,11 @@ sift scan .
 # 掃描單一檔案
 sift scan src/main.go
 
-# 只掃描變更的檔案
+# 只掃描變更的檔案（vs HEAD）
 sift scan --diff
+
+# 掃描自上次 commit 以來的變更
+sift scan --diff=HEAD~1
 ```
 
 ### 輸出格式

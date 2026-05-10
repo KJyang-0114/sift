@@ -71,8 +71,11 @@ sift scan .
 # 単一ファイルをスキャン
 sift scan src/main.go
 
-# 変更されたファイルのみスキャン
+# 変更されたファイルのみスキャン（vs HEAD）
 sift scan --diff
+
+# 前回のコミットからの変更をスキャン
+sift scan --diff=HEAD~1
 ```
 
 ### 出力フォーマット

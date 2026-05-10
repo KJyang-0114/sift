@@ -71,8 +71,11 @@ sift scan .
 # Scan a single file
 sift scan src/main.go
 
-# Scan only changed files
+# Scan only changed files (vs HEAD)
 sift scan --diff
+
+# Scan changes since last commit
+sift scan --diff=HEAD~1
 ```
 
 ### Output Formats
