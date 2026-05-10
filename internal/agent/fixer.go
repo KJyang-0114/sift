@@ -304,12 +304,24 @@ func applySingleHunk(target string, h hunk) (string, error) {
 
 	// Strategy 1: exact substring match (fast path, most common case).
 	if idx := strings.Index(target, oldText); idx >= 0 {
-		return target[:idx] + newText + target[idx+len(oldText):], nil
+		matchEnd := idx + len(oldText)
+		// When the match sits at a line boundary, extend to consume
+		// trailing whitespace on the last matched line. This corrects
+		// for LLM responses that strip trailing spaces/tabs that
+		// actually exist in the file on disk.
+		if idx == 0 || target[idx-1] == '\n' {
+			for matchEnd < len(target) && target[matchEnd] != '\n' &&
+				(target[matchEnd] == ' ' || target[matchEnd] == '\t') {
+				matchEnd++
+			}
+		}
+		return target[:idx] + newText + target[matchEnd:], nil
 	}
 
 	// Strategy 2: line-anchored match with trailing-whitespace tolerance.
-	// Find the first old line in target, then verify that subsequent old
-	// lines sit at the expected line boundaries (whitespace-insensitive).
+	// Walk through the target line by line, verifying each old line
+	// (whitespace-insensitive). The replacement preserves the trailing
+	// newline after the last matched line so the file structure is kept.
 	firstLine := h.oldLines[0]
 	searchFrom := 0
 	for {
@@ -318,24 +330,34 @@ func applySingleHunk(target string, h hunk) (string, error) {
 			break
 		}
 		matchStart := searchFrom + idx
-		matchEnd := matchStart + len(firstLine)
 
+		// First line must sit at a line boundary (avoid matching a
+		// substring mid-word, e.g. "var" inside "varchar").
+		if matchStart > 0 && target[matchStart-1] != '\n' {
+			searchFrom = matchStart + 1
+			continue
+		}
+
+		// Walk through all old lines to verify the match.
+		// pos advances to the start of each successive line;
+		// matchEnd tracks the newline position (or EOF) after the
+		// last matched line so it is preserved in the output.
+		pos := matchStart
+		matchEnd := matchStart
 		allMatch := true
-		for i := 1; i < len(h.oldLines); i++ {
+		for i := 0; i < len(h.oldLines); i++ {
 			expected := strings.TrimRight(h.oldLines[i], " \t")
-			if matchEnd >= len(target) {
-				allMatch = false
-				break
-			}
-			rest := target[matchEnd:]
+			rest := target[pos:]
 			nl := strings.IndexByte(rest, '\n')
 			var actual string
 			if nl >= 0 {
 				actual = rest[:nl]
-				matchEnd += nl + 1
+				matchEnd = pos + nl // newline position (preserved)
+				pos += nl + 1       // start of next line
 			} else {
 				actual = rest
 				matchEnd = len(target)
+				pos = len(target)
 			}
 			if strings.TrimRight(actual, " \t") != expected {
 				allMatch = false
