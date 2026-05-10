@@ -22,13 +22,13 @@ func RenderSARIF(findings []static.Finding, target string) {
 	type result struct {
 		RuleID    string             `json:"ruleId"`
 		Level     string             `json:"level"`
-		Message   struct{ Text string } `json:"message"`
+		Message   struct{ Text string `json:"text"` } `json:"message"`
 		Locations []physicalLocation `json:"locations"`
 	}
 
 	type reportingDescriptor struct {
 		ID               string `json:"id"`
-		ShortDescription struct{ Text string } `json:"shortDescription"`
+		ShortDescription struct{ Text string `json:"text"` } `json:"shortDescription"`
 	}
 
 	type toolComponent struct {
@@ -62,7 +62,7 @@ func RenderSARIF(findings []static.Finding, target string) {
 			ruleSet[f.Rule] = true
 			driver.Rules = append(driver.Rules, reportingDescriptor{
 				ID: f.Rule,
-				ShortDescription: struct{ Text string }{
+				ShortDescription: struct{ Text string `json:"text"` }{
 					Text: f.Message,
 				},
 			})
@@ -72,7 +72,7 @@ func RenderSARIF(findings []static.Finding, target string) {
 		results = append(results, result{
 			RuleID:  f.Rule,
 			Level:   level,
-			Message: struct{ Text string }{Text: f.Message},
+			Message: struct{ Text string `json:"text"` }{Text: f.Message},
 			Locations: []physicalLocation{{
 				ArtifactLocation: struct{ URI string `json:"uri"` }{URI: f.File},
 				Region: struct {
