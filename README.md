@@ -1,176 +1,58 @@
 # Sift
 
-> AI-powered code security scanner — open source, bring your own API key, one-line install.
+**為了檢查 AI 快速產生的程式碼，Sift 把靜態規則、幻覺套件驗證、選擇性 LLM 分析與結構化報告整合成一個 Go CLI。**
 
-*[中文](./README.zh-Hant.md) | [日本語](./README.ja.md)*
+> A Go-based scanner for reviewing AI-generated code with deterministic rules first, optional semantic analysis second, and evidence-oriented output throughout.
 
-Sift is the gatekeeper for the Vibecoding era. It combines Semgrep static rules with LLM semantic analysis to scan AI-generated code for security vulnerabilities, hallucinated packages, and logic errors.
+[English summary](#english-summary) · [繁體中文](./README.zh-Hant.md) · [日本語](./README.ja.md)
 
-## Quick Start
+![Sift architecture](assets/architecture.png)
 
-```bash
-# 1. Install
-curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh | bash
+## 為誰解決什麼問題
 
-# 2. Configure (3 questions max)
-sift init
+AI 能很快寫出大量 code，也可能同時帶入 SQL injection、XSS、hardcoded secret、虛構 package 或邏輯錯誤。Sift 的目標不是宣稱「AI 會自動保證安全」，而是把檢查點固定在可執行流程中。
 
-# 3. Scan
-sift scan .
-```
+## 管線
 
-## Installation
+1. CLI 解析 target、config 與 diff ref。
+2. 以 Semgrep rules 與 package verifier 執行確定性檢查。
+3. 只在使用者已配置 provider 與 API key 時，啟用 semantic analyzer / test generator。
+4. analyzer 並行執行，受 concurrency 與 timeout 約束。
+5. 輸出 terminal、JSON、SARIF 或 LLM-readable report，並將掃描記錄寫入 SQLite。
 
-### Automatic (recommended)
+## 核心程式
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh | bash
-```
+| Analyzer composition | Parallel execution |
+|---|---|
+| ![Orchestrator code](assets/orchestrator-code.png) | ![Concurrency code](assets/concurrency-code.png) |
 
-### Manual / AI Agent Instructions
+## 技術決策，與我學到的事
 
-If you're an AI coding agent helping a user install Sift, run these commands:
+1. **確定性規則先於 LLM。** 已知 vulnerability class 交給可重現 rules，語意分析是補充，不是唯一判斷者。
+2. **Offline 必須是正常模式。** 沒有 LLM key 時仍可執行 static scan 與 package verification，避免把每個檢查綁到外部服務。
+3. **報告是交付介面。** Terminal 適合人、SARIF 適合 GitHub Code Scanning、JSON 適合 automation、LLM format 適合下一步修復。
+4. **檢測結果不等於漏洞已確認。** Rule 與 model 都可能 false positive，最後仍需要人讀取 data flow 與實際執行路徑。
 
-```bash
-# 1. Get the latest version
-SIFT_VERSION=$(curl -s https://api.github.com/repos/KJyang-0114/sift/releases/latest | jq -r .tag_name)
-
-# 2. Detect OS and architecture
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m)
-case "$ARCH" in
-  x86_64) ARCH="amd64" ;;
-  aarch64|arm64) ARCH="arm64" ;;
-esac
-
-# 3. Download and install
-curl -fsSL "https://github.com/KJyang-0114/sift/releases/download/${SIFT_VERSION}/sift_${OS}_${ARCH}.tar.gz" \
-  | sudo tar -xz -C /usr/local/bin sift
-
-# 4. Verify
-sift --version
-```
-
-### Build from Source
+## 快速驗證
 
 ```bash
-git clone https://github.com/KJyang-0114/sift.git
-cd sift
-go build -o sift ./cmd/sift/
-sudo mv sift /usr/local/bin/
+go build -o sift ./cmd/sift
+./sift init
+./sift scan .
+./sift scan --diff=HEAD~1 --format sarif
 ```
 
-## Usage
+![Local build and package check](assets/test-run.png)
 
-### Basic Scanning
+PR98 重測：`go test ./...` 與 `go build ./cmd/sift` 通過。目前 packages 多為 `[no test files]`，因此這個結果只證明 compile / package integration，不代表行為覆蓋率足夠。
 
-```bash
-# Scan entire project
-sift scan .
+## 狀態與限制
 
-# Scan a single file
-sift scan src/main.go
+- 狀態：可 build 的開源原型；22 個本人 commits。
+- LLM 分析需使用者自己提供 provider key；offline 模式不需要。
+- 不宣稱：找到所有漏洞、無 false positive、可取代 code review。
+- 下一步：補 parser、diff mode、SARIF schema 與 cache behavior 的自動測試。
 
-# Scan only changed files (vs HEAD)
-sift scan --diff
+## English summary
 
-# Scan changes since last commit
-sift scan --diff=HEAD~1
-```
-
-### Output Formats
-
-```bash
-# Terminal output with colors (default)
-sift scan . --format terminal
-
-# JSON format (programmatic consumption)
-sift scan . --format json
-
-# SARIF format (GitHub Code Scanning compatible)
-sift scan . --format sarif
-
-# LLM-consumable format (paste directly into any LLM for fixes)
-sift scan . --format llm
-```
-
-The `--format llm` flag is Sift's killer feature — output can be piped directly to any LLM for automatic fixes:
-
-```bash
-sift scan . --format llm | claude -p "Fix all issues listed above"
-```
-
-### CI/CD Integration
-
-```yaml
-# .github/workflows/sift.yml
-name: sift
-on: [pull_request]
-jobs:
-  scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-      - name: Run Sift scan
-        env:
-          SIFT_LLM_API_KEY: ${{ secrets.SIFT_LLM_API_KEY }}
-        run: |
-          go install github.com/KJyang-0114/sift/cmd/sift@latest
-          sift scan . --format sarif
-```
-
-### Environment Variables
-
-Don't want a config file? Use environment variables:
-
-```bash
-export SIFT_LLM_PROVIDER=anthropic
-export SIFT_LLM_API_KEY=sk-ant-xxx
-export SIFT_LLM_MODEL=claude-sonnet-4-6
-
-sift scan .
-```
-
-## Features
-
-- **Static Security Scanning**: SQL Injection, XSS, Command Injection, Hardcoded Secrets
-- **Hallucinated Package Detection**: Validates dependencies against NPM / PyPI / Cargo registries
-- **LLM Semantic Analysis**: Detects logic errors and Prompt Injection risks
-- **Automated Test Generation**: AST + LLM dual-layer edge case test generation
-- **Sandboxed Dynamic Execution**: Isolated runtime execution with error interception
-- **LLM-Direct Output**: `--format llm` produces reports directly consumable by LLMs for automated fixes
-
-## Configuration
-
-Config file at `~/.sift/config.toml`, auto-generated by `sift init`.
-
-```toml
-[llm]
-provider = "anthropic"        # anthropic | openai | openrouter | ollama | siliconflow | gemini | deepseek | offline
-api_key = "sk-ant-xxx"        # or use SIFT_LLM_API_KEY env var
-model = "claude-sonnet-4-6"
-
-[scan]
-timeout = 120
-concurrency = 4
-sandbox = "orbital"           # orbital
-
-[output]
-format = "terminal"           # terminal | json | sarif | llm
-color = true
-```
-
-Project-level overrides can be placed in `.sift.toml` at the project root:
-
-```toml
-[rules]
-ignore = ["vendor/", "node_modules/", "*.pb.go"]
-severity = ["critical", "high", "medium"]
-```
-
-## License
-
-MIT License
+Sift is an executable Go prototype that combines deterministic security rules, dependency verification, optional LLM analysis, concurrent orchestration, and multiple report formats. Its main lesson is methodological: AI output becomes more useful when claims are converted into checks, evidence, and repeatable reruns.
