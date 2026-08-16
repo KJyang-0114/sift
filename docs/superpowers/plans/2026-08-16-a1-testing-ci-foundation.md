@@ -23,6 +23,8 @@
 
 ## File map
 
+- `internal/sandbox/process_unix.go`: Linux/macOS process-group setup and cleanup.
+- `internal/sandbox/process_windows.go`: Windows-safe process cleanup without Unix syscalls.
 - `internal/static/analyzer_test.go`: severity filtering and grouping invariants.
 - `internal/securepath/securepath_test.go`: existing absolute-path containment, read, and write contracts.
 - `internal/config/config_test.go`: default values, provider model selection, and environment overrides.
@@ -36,6 +38,47 @@
 - `internal/scan/pool_test.go`: ordering, concurrency limit, failure statistics, and cache callbacks.
 - `.github/workflows/ci.yml`: formatting, vet, test, race, and cross-platform build gates.
 - `Makefile`: deterministic `fmt-check`, `test`, `test-race`, and `ci` targets.
+
+### Task 0: Restore the Windows build baseline
+
+**Files:**
+- Modify: `internal/sandbox/orbital.go`
+- Create: `internal/sandbox/process_unix.go`
+- Create: `internal/sandbox/process_windows.go`
+
+**Interfaces:**
+- Produces package-private `configureProcessGroup(*exec.Cmd)` and `killProcess(*exec.Cmd)` implementations for supported platforms.
+- Preserves Linux/macOS process-group behavior and uses direct process termination on Windows.
+
+- [x] **Step 1: Reproduce the baseline failure**
+
+Run: `go test ./...`
+Observed: Windows compilation fails because `syscall.SysProcAttr.Setpgid`, `syscall.Getpgid`, and `syscall.Kill` do not exist on Windows.
+
+- [x] **Step 2: Confirm the root cause in the Go standard library**
+
+Go 1.25.5 defines `Setpgid` and process-group syscalls only for Unix targets, while `orbital.go` had no platform build constraint.
+
+- [x] **Step 3: Split platform-specific process control**
+
+Keep orchestration in `orbital.go`. Implement Unix process-group control in a Linux/macOS build-tagged file and a Windows direct-process fallback in a Windows build-tagged file.
+
+- [x] **Step 4: Re-run the Windows suite**
+
+Run: `go test ./...`
+Expected: all packages compile on Windows and the baseline suite passes.
+
+- [x] **Step 5: Cross-compile supported targets**
+
+Run `go build ./cmd/sift/` with `GOOS=windows`, `GOOS=linux`, and `GOOS=darwin` using `CGO_ENABLED=0`.
+Expected: all three builds pass.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add internal/sandbox/orbital.go internal/sandbox/process_unix.go internal/sandbox/process_windows.go docs/superpowers/plans/2026-08-16-a1-testing-ci-foundation.md
+git commit -m "fix: make sandbox process control portable"
+```
 
 ### Task 1: Static finding helpers
 
