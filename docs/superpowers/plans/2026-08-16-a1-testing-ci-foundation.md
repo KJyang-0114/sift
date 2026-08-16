@@ -309,7 +309,7 @@ git commit -m "test: add deterministic report contracts"
 - Consumes package-private `parseHunks`, `applySingleHunk`, and `applyPatch`.
 - Produces regression coverage for exact, multi-hunk, whitespace-tolerant, malformed, and atomic-failure behavior.
 
-- [ ] **Step 1: Write table-driven patch tests**
+- [x] **Step 1: Write table-driven patch tests**
 
 ```go
 func TestApplyPatch(t *testing.T) {
@@ -338,7 +338,7 @@ func TestApplyPatch(t *testing.T) {
 
 Add cases for file headers, trailing whitespace, no-op replacement, and a second hunk failing after the first to prove the original is returned.
 
-- [ ] **Step 2: Run the tests**
+- [x] **Step 2: Run the tests**
 
 Run: `go test ./internal/agent -run 'Test(Parse|Apply)' -count=1`
 Expected: PASS unless a regression is exposed. If one fails, add the smallest production fix and retain the failing case.
