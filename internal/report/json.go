@@ -9,12 +9,12 @@ import (
 )
 
 type jsonReport struct {
-	Tool      string          `json:"tool"`
-	Version   string          `json:"version"`
-	Target    string          `json:"target"`
-	Timestamp string          `json:"timestamp"`
-	Duration  string          `json:"duration"`
-	Summary   jsonSummary     `json:"summary"`
+	Tool      string           `json:"tool"`
+	Version   string           `json:"version"`
+	Target    string           `json:"target"`
+	Timestamp string           `json:"timestamp"`
+	Duration  string           `json:"duration"`
+	Summary   jsonSummary      `json:"summary"`
 	Findings  []static.Finding `json:"findings"`
 }
 
@@ -29,12 +29,21 @@ type jsonSummary struct {
 
 // RenderJSON outputs the scan report in JSON format.
 func RenderJSON(findings []static.Finding, target string, duration time.Duration) {
+	out, err := encodeJSON(findings, target, duration, time.Now())
+	if err != nil {
+		fmt.Printf("{\"error\":%q}\n", err.Error())
+		return
+	}
+	fmt.Println(string(out))
+}
+
+func encodeJSON(findings []static.Finding, target string, duration time.Duration, now time.Time) ([]byte, error) {
 	groups := static.GroupBySeverity(findings)
 
 	report := jsonReport{
 		Tool:      "sift",
 		Target:    target,
-		Timestamp: time.Now().Format(time.RFC3339),
+		Timestamp: now.Format(time.RFC3339),
 		Duration:  fmt.Sprintf("%.2fs", duration.Seconds()),
 		Summary: jsonSummary{
 			Total:    len(findings),
@@ -51,6 +60,5 @@ func RenderJSON(findings []static.Finding, target string, duration time.Duration
 		report.Findings = []static.Finding{}
 	}
 
-	out, _ := json.MarshalIndent(report, "", "  ")
-	fmt.Println(string(out))
+	return json.MarshalIndent(report, "", "  ")
 }

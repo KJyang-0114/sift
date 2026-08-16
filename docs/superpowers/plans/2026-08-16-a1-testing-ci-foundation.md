@@ -229,7 +229,7 @@ git commit -m "test: lock down path and config contracts"
 - Produces: `encodeSARIF(findings []static.Finding) ([]byte, error)`.
 - Preserves: `RenderJSON` and `RenderSARIF` stdout behavior.
 
-- [ ] **Step 1: Write failing JSON encoder tests**
+- [x] **Step 1: Write failing JSON encoder tests**
 
 ```go
 func TestEncodeJSONSummaryAndEmptyFindings(t *testing.T) {
@@ -255,12 +255,12 @@ func TestEncodeJSONSummaryAndEmptyFindings(t *testing.T) {
 
 Add a second test with critical/high/medium/low/info findings and assert every summary count.
 
-- [ ] **Step 2: Verify JSON tests fail**
+- [x] **Step 2: Verify JSON tests fail**
 
 Run: `go test ./internal/report -run TestEncodeJSON -count=1`
 Expected: FAIL because `encodeJSON` does not exist.
 
-- [ ] **Step 3: Extract the JSON encoder**
+- [x] **Step 3: Extract the JSON encoder**
 
 Move report construction into `encodeJSON`, inject `now`, return marshal errors, and keep:
 
@@ -275,20 +275,20 @@ func RenderJSON(findings []static.Finding, target string, duration time.Duration
 }
 ```
 
-- [ ] **Step 4: Write failing SARIF encoder tests**
+- [x] **Step 4: Write failing SARIF encoder tests**
 
 Parse the returned document into `map[string]any` and assert schema/version, one unique rule descriptor for duplicate rules, severity mapping, `startColumn` normalization to `1`, and empty `results` encoded as `[]` rather than `null`.
 
-- [ ] **Step 5: Verify SARIF tests fail**
+- [x] **Step 5: Verify SARIF tests fail**
 
 Run: `go test ./internal/report -run TestEncodeSARIF -count=1`
 Expected: FAIL because `encodeSARIF` does not exist and empty slices currently marshal as `null`.
 
-- [ ] **Step 6: Extract the SARIF encoder**
+- [x] **Step 6: Extract the SARIF encoder**
 
 Move SARIF construction into `encodeSARIF`, initialize rule/result slices, return `json.MarshalIndent` errors, and make `RenderSARIF` a stdout wrapper.
 
-- [ ] **Step 7: Run all report tests**
+- [x] **Step 7: Run all report tests**
 
 Run: `go test ./internal/report -count=1`
 Expected: PASS.
