@@ -17,7 +17,7 @@ import (
 // Enterprise feature: only scans files changed since last run, dramatically reducing repeat scan time.
 type FileCache struct {
 	mu          sync.RWMutex
-	entries     map[string]*CacheEntry `json:"entries"`
+	entries     map[string]*CacheEntry
 	path        string
 	projectRoot string
 }

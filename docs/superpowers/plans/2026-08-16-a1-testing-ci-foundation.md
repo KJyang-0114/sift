@@ -415,7 +415,7 @@ git commit -m "test: cover cache and worker pool concurrency"
 - Produces: `fmt-check`, `test`, `test-race`, and `ci` Make targets.
 - Produces GitHub checks: `quality` and `build (<os>)`.
 
-- [ ] **Step 1: Add deterministic Make targets**
+- [x] **Step 1: Add deterministic Make targets**
 
 ```make
 .PHONY: fmt-check test test-race ci
@@ -435,7 +435,7 @@ ci: fmt-check
 	go build ./cmd/sift/
 ```
 
-- [ ] **Step 2: Add the GitHub Actions workflow**
+- [x] **Step 2: Add the GitHub Actions workflow**
 
 Create a least-privilege workflow triggered for pull requests and pushes to `main`. The Ubuntu `quality` job runs format check, vet, all tests, race tests, and build. A matrix job cross-builds natively on `ubuntu-latest`, `macos-latest`, and `windows-latest` using Go `1.25.5`.
 
@@ -447,8 +447,8 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.25.5'
           cache: true
@@ -459,7 +459,7 @@ jobs:
       - run: go build ./cmd/sift/
 ```
 
-- [ ] **Step 3: Run local equivalents**
+- [x] **Step 3: Run local equivalents**
 
 Run: `gofmt -w internal/**/*_test.go`
 
@@ -472,6 +472,8 @@ Run: `go test -race ./... -count=1` on a supported local environment; otherwise 
 Run: `go build ./cmd/sift/`
 
 Expected: all commands PASS.
+
+Observed: formatting, dependency verification, vet, all tests, and the Windows build pass locally. The race test requires GCC and runs in the Ubuntu job. Enabling the formatting gate required a separate mechanical gofmt baseline commit. Vet also exposed an ineffective JSON tag on an unexported cache field; the tag was removed without changing serialization behavior.
 
 - [ ] **Step 4: Commit**
 
