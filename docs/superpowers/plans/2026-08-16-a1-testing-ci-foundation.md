@@ -139,7 +139,7 @@ git commit -m "test: cover finding severity helpers"
 - Consumes: `ValidatePath`, `ReadFile`, `WriteFile`, `Default`, `LLMConfig.DefaultModel`, `Save`, and `Load`.
 - Produces: cross-platform tests for current containment and config persistence behavior.
 
-- [ ] **Step 1: Write secure-path tests**
+- [x] **Step 1: Write secure-path tests**
 
 ```go
 func TestValidatePathRejectsOutsideAbsolutePath(t *testing.T) {
@@ -168,7 +168,7 @@ func TestReadWriteFileInsideBase(t *testing.T) {
 
 Do not add relative-path or symlink expectations in A1; those contracts belong to A3's resolver redesign.
 
-- [ ] **Step 2: Write configuration tests**
+- [x] **Step 2: Write configuration tests**
 
 ```go
 func TestLoadAppliesEnvironmentOverrides(t *testing.T) {
@@ -189,12 +189,12 @@ func TestLoadAppliesEnvironmentOverrides(t *testing.T) {
 
 `setTestHome` sets both `HOME` and `USERPROFILE` to one temporary directory. Add tests for `Default`, every provider's `DefaultModel`, save/load round trip, directory permission `0700`, and non-Windows file permission no broader than `0600`.
 
-- [ ] **Step 3: Run tests and observe the permission failure**
+- [x] **Step 3: Run tests and observe the permission failure**
 
 Run: `go test ./internal/securepath ./internal/config -count=1`
-Expected: `securepath` passes; config file-permission test fails because `os.Create` uses the process umask and does not force `0600`.
+Observed on Windows: `securepath` passed and the environment-override test failed because `Load` returned before applying overrides when no config file existed. The Unix permission assertion is platform-gated and will run in CI; code inspection confirmed `os.Create` did not force `0600`.
 
-- [ ] **Step 4: Make config save permissions deterministic**
+- [x] **Step 4: Make config save permissions deterministic**
 
 Replace `os.Create(path)` with:
 
@@ -204,7 +204,7 @@ f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 
 After encoding and closing, call `os.Chmod(path, 0o600)` on non-Windows systems so an existing broader file is tightened.
 
-- [ ] **Step 5: Re-run tests**
+- [x] **Step 5: Re-run tests**
 
 Run: `go test ./internal/securepath ./internal/config -count=1`
 Expected: PASS.

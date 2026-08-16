@@ -25,15 +25,23 @@ func Save(cfg *Config) (string, error) {
 		return "", err
 	}
 
-	f, err := os.Create(path)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return "", fmt.Errorf("unable to write config file %s: %w", path, err)
 	}
-	defer f.Close()
 
 	enc := toml.NewEncoder(f)
 	if err := enc.Encode(cfg); err != nil {
+		_ = f.Close()
 		return "", fmt.Errorf("unable to encode config: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return "", fmt.Errorf("unable to close config file %s: %w", path, err)
+	}
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(path, 0o600); err != nil {
+			return "", fmt.Errorf("unable to restrict config file %s: %w", path, err)
+		}
 	}
 
 	return path, nil
@@ -49,6 +57,7 @@ func Load() (*Config, string, error) {
 	cfg := Default()
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
+		cfg.applyEnvOverrides()
 		return cfg, path, nil
 	}
 
