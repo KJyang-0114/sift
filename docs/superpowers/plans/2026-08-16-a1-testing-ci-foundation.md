@@ -73,7 +73,7 @@ Expected: all packages compile on Windows and the baseline suite passes.
 Run `go build ./cmd/sift/` with `GOOS=windows`, `GOOS=linux`, and `GOOS=darwin` using `CGO_ENABLED=0`.
 Expected: all three builds pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internal/sandbox/orbital.go internal/sandbox/process_unix.go internal/sandbox/process_windows.go docs/superpowers/plans/2026-08-16-a1-testing-ci-foundation.md
@@ -121,7 +121,7 @@ Add `TestGroupBySeverity` to assert empty input and exact grouping for all five 
 Run: `go test ./internal/static -run 'Test(Filter|Group)' -count=1`
 Expected: PASS. These tests characterize current behavior and require no production edit.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/static/analyzer_test.go
@@ -209,7 +209,7 @@ After encoding and closing, call `os.Chmod(path, 0o600)` on non-Windows systems 
 Run: `go test ./internal/securepath ./internal/config -count=1`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internal/securepath/securepath_test.go internal/config/config_test.go internal/config/store_test.go internal/config/store.go
@@ -293,7 +293,7 @@ Move SARIF construction into `encodeSARIF`, initialize rule/result slices, retur
 Run: `go test ./internal/report -count=1`
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add internal/report/json.go internal/report/json_test.go internal/report/sarif.go internal/report/sarif_test.go
@@ -343,7 +343,7 @@ Add cases for file headers, trailing whitespace, no-op replacement, and a second
 Run: `go test ./internal/agent -run 'Test(Parse|Apply)' -count=1`
 Expected: PASS unless a regression is exposed. If one fails, add the smallest production fix and retain the failing case.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/agent/fixer_test.go internal/agent/fixer.go
@@ -398,7 +398,7 @@ Expected: PASS on Linux/macOS.
 
 Observed locally: normal Windows tests exposed and verified the `Save`/`Stats` concurrent map bug. The portable Go toolchain could not run `-race` because no C compiler is installed; the Ubuntu required check runs the race detector.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add internal/cache/filecache_test.go internal/scan/pool_test.go
@@ -475,7 +475,7 @@ Expected: all commands PASS.
 
 Observed: formatting, dependency verification, vet, all tests, and the Windows build pass locally. The race test requires GCC and runs in the Ubuntu job. Enabling the formatting gate required a separate mechanical gofmt baseline commit. Vet also exposed an ineffective JSON tag on an unexported cache field; the tag was removed without changing serialization behavior.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .github/workflows/ci.yml Makefile
