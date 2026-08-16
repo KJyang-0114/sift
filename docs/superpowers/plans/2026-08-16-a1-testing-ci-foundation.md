@@ -89,7 +89,7 @@ git commit -m "fix: make sandbox process control portable"
 - Consumes: `FilterBySeverity([]Finding, Severity) []Finding`, `GroupBySeverity([]Finding) map[Severity][]Finding`.
 - Produces: regression coverage for severity ordering and unknown thresholds.
 
-- [ ] **Step 1: Write table-driven tests**
+- [x] **Step 1: Write table-driven tests**
 
 ```go
 func TestFilterBySeverity(t *testing.T) {
@@ -116,7 +116,7 @@ func TestFilterBySeverity(t *testing.T) {
 
 Add `TestGroupBySeverity` to assert empty input and exact grouping for all five severities.
 
-- [ ] **Step 2: Run the package test**
+- [x] **Step 2: Run the package test**
 
 Run: `go test ./internal/static -run 'Test(Filter|Group)' -count=1`
 Expected: PASS. These tests characterize current behavior and require no production edit.
