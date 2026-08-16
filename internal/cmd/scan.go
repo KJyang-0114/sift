@@ -13,9 +13,9 @@ import (
 
 func newScanCmd() *cobra.Command {
 	var (
-		format   string
-		sandbox  string
-		timeout  int
+		format  string
+		sandbox string
+		timeout int
 		diffRef string
 	)
 

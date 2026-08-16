@@ -23,10 +23,10 @@ type Fixer struct {
 
 // FixResult is the result of a single fix operation.
 type FixResult struct {
-	Finding   static.Finding `json:"finding"`
-	Fixed     bool           `json:"fixed"`
-	Patch     string         `json:"patch,omitempty"`
-	Error     string         `json:"error,omitempty"`
+	Finding static.Finding `json:"finding"`
+	Fixed   bool           `json:"fixed"`
+	Patch   string         `json:"patch,omitempty"`
+	Error   string         `json:"error,omitempty"`
 }
 
 // NewFixer creates an auto-fixer.

@@ -38,11 +38,11 @@ type Analyzer interface {
 
 // Result represents the outcome of a complete static scan.
 type Result struct {
-	Analyzer  string        `json:"analyzer"`
-	Target    string        `json:"target"`
-	Findings  []Finding     `json:"findings"`
-	Duration  time.Duration `json:"duration"`
-	Error     error         `json:"error,omitempty"`
+	Analyzer string        `json:"analyzer"`
+	Target   string        `json:"target"`
+	Findings []Finding     `json:"findings"`
+	Duration time.Duration `json:"duration"`
+	Error    error         `json:"error,omitempty"`
 }
 
 // FilterBySeverity filters findings by severity level.

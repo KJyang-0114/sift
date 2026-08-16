@@ -13,7 +13,7 @@ import (
 // BatchAnalyzer sends multiple files to the LLM in batches, dramatically reducing API calls.
 // Enterprise feature: For large projects with 1000+ files, batch mode reduces API calls by 10-20x.
 type BatchAnalyzer struct {
-	client   llm.Client
+	client    llm.Client
 	batchSize int
 	timeout   time.Duration
 }

@@ -24,12 +24,12 @@ type FileCache struct {
 
 // CacheEntry records the cached state of a single file.
 type CacheEntry struct {
-	Path      string    `json:"path"`
-	SHA256    string    `json:"sha256"`
-	Size      int64     `json:"size"`
-	ModTime   time.Time `json:"mod_time"`
-	LastScan  time.Time `json:"last_scan"`
-	Findings  int       `json:"findings"`
+	Path     string    `json:"path"`
+	SHA256   string    `json:"sha256"`
+	Size     int64     `json:"size"`
+	ModTime  time.Time `json:"mod_time"`
+	LastScan time.Time `json:"last_scan"`
+	Findings int       `json:"findings"`
 }
 
 // NewFileCache creates or loads the cache.
@@ -158,8 +158,8 @@ func (fc *FileCache) Stats() map[string]int {
 	}
 
 	return map[string]int{
-		"cached_files":    len(fc.entries),
-		"total_findings":  totalFindings,
+		"cached_files":   len(fc.entries),
+		"total_findings": totalFindings,
 	}
 }
 

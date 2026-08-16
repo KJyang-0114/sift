@@ -12,9 +12,9 @@ import (
 
 func newInitCmd() *cobra.Command {
 	var (
-		provider string
-		apiKey   string
-		model    string
+		provider       string
+		apiKey         string
+		model          string
 		nonInteractive bool
 	)
 
