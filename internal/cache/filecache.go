@@ -129,8 +129,8 @@ func (fc *FileCache) FilterChanged(files []string) ([]string, error) {
 
 // Save writes the cache to disk.
 func (fc *FileCache) Save() error {
-	fc.mu.RLock()
-	defer fc.mu.RUnlock()
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
 
 	// Clean up non-existent files
 	for path := range fc.entries {

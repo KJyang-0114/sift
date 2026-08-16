@@ -360,11 +360,11 @@ git commit -m "test: cover unified diff application"
 - Consumes: `NewFileCache`, `IsChanged`, `MarkScanned`, `FilterChanged`, `Save`, `Stats`, `Purge`, `NewWorkerPool`, `Run`, and `ScanWithCache`.
 - Produces race-detector coverage for shared cache/pool state.
 
-- [ ] **Step 1: Write cache lifecycle tests**
+- [x] **Step 1: Write cache lifecycle tests**
 
 Create a file under `t.TempDir()`, assert it starts changed, mark and save it, reload the cache, assert unchanged, modify equal-length content, assert changed, then purge and assert zero cached files. Add a `FilterChanged` case containing one missing file and assert conservative inclusion.
 
-- [ ] **Step 2: Write worker-pool tests**
+- [x] **Step 2: Write worker-pool tests**
 
 Use atomics to track active jobs and assert the observed maximum never exceeds `maxWorkers`. Assert results retain input order, one failing job increments `failed`, and `ScanWithCache` invokes `markScanned` only for successful changed files.
 
@@ -388,13 +388,15 @@ if maximum.Load() > 2 {
 }
 ```
 
-- [ ] **Step 3: Run normal and race tests**
+- [x] **Step 3: Run normal and race tests**
 
 Run: `go test ./internal/cache ./internal/scan -count=1`
 Expected: PASS.
 
 Run: `go test -race ./internal/cache ./internal/scan -count=1`
 Expected: PASS on Linux/macOS.
+
+Observed locally: normal Windows tests exposed and verified the `Save`/`Stats` concurrent map bug. The portable Go toolchain could not run `-race` because no C compiler is installed; the Ubuntu required check runs the race detector.
 
 - [ ] **Step 4: Commit**
 
