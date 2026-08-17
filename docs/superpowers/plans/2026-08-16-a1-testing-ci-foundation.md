@@ -514,6 +514,8 @@ Confirm there are no CLI, config-schema, analyzer-interface, or Finding-schema c
 
 Observed: the non-documentation diff is limited to tests, CI/build tooling, platform-specific sandbox process control, configuration permission/override fixes, deterministic report encoding seams, a cache locking fix, and the repository gofmt baseline. No CLI flags, configuration schema, analyzer interface, or Finding schema changed.
 
-- [ ] **Step 3: Push and open the pull request**
+- [x] **Step 3: Push and open the pull request**
 
 Push `codex/a1-testing-ci-foundation`, open a draft PR against `main`, include tests/security/rollback sections, wait for GitHub checks, then mark ready for maintainer review. Do not merge.
+
+Observed: branch `codex/a1-testing-ci-foundation` was pushed and [PR #1](https://github.com/KJyang-0114/sift/pull/1) was opened as a draft. The CI workflow, including the Ubuntu race detector and native Linux/macOS/Windows builds, and the existing Sift Security Scan all completed successfully before the PR was handed off for maintainer review.
