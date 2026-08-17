@@ -1,15 +1,16 @@
 package scan
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/KJyang-0114/sift/internal/static"
+	"github.com/KJyang-0114/sift/internal/core"
 )
 
 // WorkerPool provides controlled concurrent analysis execution.
-// Enterprise features: limits concurrent analyzer count, rate limiting, timeout control.
 type WorkerPool struct {
 	maxWorkers int
 	timeout    time.Duration
@@ -35,87 +36,121 @@ func NewWorkerPool(maxWorkers int, timeout time.Duration) *WorkerPool {
 // Job represents an analysis task.
 type Job struct {
 	Name    string
-	Analyze func() ([]static.Finding, error)
+	Analyze func(context.Context) core.AnalysisResult
 }
 
-// BatchResult represents the result of a batch execution.
+// BatchResult represents one scheduled analyzer result.
 type BatchResult struct {
-	Name     string           `json:"name"`
-	Findings []static.Finding `json:"findings"`
-	Duration time.Duration    `json:"duration"`
-	Error    error            `json:"error,omitempty"`
+	Name        string            `json:"name"`
+	Findings    []core.Finding    `json:"findings"`
+	Diagnostics []core.Diagnostic `json:"diagnostics"`
+	Duration    time.Duration     `json:"duration"`
 }
 
-// Run executes multiple analysis jobs in parallel, limiting concurrency.
-func (wp *WorkerPool) Run(jobs []Job) []BatchResult {
+// Run executes analysis jobs in input order with bounded concurrency.
+func (pool *WorkerPool) Run(ctx context.Context, jobs []Job) []BatchResult {
 	results := make([]BatchResult, len(jobs))
-	var wg sync.WaitGroup
+	var group sync.WaitGroup
 
-	for i, job := range jobs {
-		wg.Add(1)
-
-		go func(idx int, j Job) {
-			defer wg.Done()
-
-			// Acquire semaphore (blocks until a slot is available)
-			wp.semaphore <- struct{}{}
-			defer func() { <-wp.semaphore }()
-
-			wp.mu.Lock()
-			wp.totalJobs++
-			wp.mu.Unlock()
-
+	for index, job := range jobs {
+		group.Add(1)
+		go func(resultIndex int, scheduled Job) {
+			defer group.Done()
 			start := time.Now()
-			findings, err := j.Analyze()
-			duration := time.Since(start)
+			analysis := core.AnalysisResult{Findings: []core.Finding{}, Diagnostics: []core.Diagnostic{}}
 
-			wp.mu.Lock()
-			wp.completed++
-			if err != nil {
-				wp.failed++
+			select {
+			case pool.semaphore <- struct{}{}:
+				defer func() { <-pool.semaphore }()
+			case <-ctx.Done():
+				analysis.Diagnostics = append(analysis.Diagnostics, contextDiagnostic(scheduled.Name, ctx.Err()))
+				pool.recordResult(analysis.Diagnostics)
+				results[resultIndex] = batchResult(scheduled.Name, analysis, time.Since(start))
+				return
 			}
-			wp.mu.Unlock()
 
-			results[idx] = BatchResult{
-				Name:     j.Name,
-				Findings: findings,
-				Duration: duration,
-				Error:    err,
+			pool.mu.Lock()
+			pool.totalJobs++
+			pool.mu.Unlock()
+
+			jobCtx := ctx
+			cancel := func() {}
+			if pool.timeout > 0 {
+				jobCtx, cancel = context.WithTimeout(ctx, pool.timeout)
 			}
-		}(i, job)
+			analysis = scheduled.Analyze(jobCtx)
+			jobErr := jobCtx.Err()
+			cancel()
+			if analysis.Findings == nil {
+				analysis.Findings = []core.Finding{}
+			}
+			if analysis.Diagnostics == nil {
+				analysis.Diagnostics = []core.Diagnostic{}
+			}
+			if jobErr != nil {
+				analysis.Diagnostics = append(analysis.Diagnostics, contextDiagnostic(scheduled.Name, jobErr))
+			}
+
+			pool.recordResult(analysis.Diagnostics)
+			results[resultIndex] = batchResult(scheduled.Name, analysis, time.Since(start))
+		}(index, job)
 	}
 
-	wg.Wait()
+	group.Wait()
 	return results
 }
 
-// Stats returns execution statistics.
-func (wp *WorkerPool) Stats() string {
-	wp.mu.Lock()
-	defer wp.mu.Unlock()
-	return fmt.Sprintf("workers=%d jobs=%d completed=%d failed=%d",
-		wp.maxWorkers, wp.totalJobs, wp.completed, wp.failed)
+func batchResult(name string, analysis core.AnalysisResult, duration time.Duration) BatchResult {
+	return BatchResult{
+		Name: name, Findings: analysis.Findings, Diagnostics: analysis.Diagnostics, Duration: duration,
+	}
 }
 
-// ScanWithCache performs incremental scanning using the cache.
-// For large projects (10000+ files), can reduce scan time by 90%+.
-func (wp *WorkerPool) ScanWithCache(
+func contextDiagnostic(source string, err error) core.Diagnostic {
+	code := "analyzer.cancelled"
+	if errors.Is(err, context.DeadlineExceeded) {
+		code = "analyzer.timeout"
+	}
+	return core.Diagnostic{
+		Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticError,
+		Code: code, Source: source, Message: err.Error(), Cause: err,
+	}
+}
+
+func (pool *WorkerPool) recordResult(diagnostics []core.Diagnostic) {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+	pool.completed++
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Severity == core.DiagnosticError {
+			pool.failed++
+			return
+		}
+	}
+}
+
+// Stats returns execution statistics.
+func (pool *WorkerPool) Stats() string {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+	return fmt.Sprintf("workers=%d jobs=%d completed=%d failed=%d",
+		pool.maxWorkers, pool.totalJobs, pool.completed, pool.failed)
+}
+
+// ScanWithCache performs incremental scanning using the v2 result contract.
+func (pool *WorkerPool) ScanWithCache(
+	ctx context.Context,
 	files []string,
-	analyzeFunc func(string) ([]static.Finding, error),
+	analyze func(context.Context, string) core.AnalysisResult,
 	isChanged func(string) (bool, error),
 	markScanned func(string, int) error,
-) ([]static.Finding, error) {
-	// Phase 1: Filter changed files
-	var changedFiles []string
-	var skippedCount int
-	for _, f := range files {
-		changed, err := isChanged(f)
-		if err != nil {
-			changedFiles = append(changedFiles, f)
-			continue
-		}
-		if changed {
-			changedFiles = append(changedFiles, f)
+) core.AnalysisResult {
+	changedFiles := make([]string, 0, len(files))
+	skippedCount := 0
+	for _, file := range files {
+		changed, err := isChanged(file)
+		if err != nil || changed {
+			changedFiles = append(changedFiles, file)
 		} else {
 			skippedCount++
 		}
@@ -125,31 +160,39 @@ func (wp *WorkerPool) ScanWithCache(
 		fmt.Printf("  ⚡ incremental scan: skipped %d unchanged file(s), scanning %d\n", skippedCount, len(changedFiles))
 	}
 
-	// Phase 2: Parallel analysis of changed files
-	var allFindings []static.Finding
-	var jobs []Job
-
-	for _, f := range changedFiles {
-		file := f
+	jobs := make([]Job, 0, len(changedFiles))
+	for _, file := range changedFiles {
+		file := file
 		jobs = append(jobs, Job{
 			Name: file,
-			Analyze: func() ([]static.Finding, error) {
-				findings, err := analyzeFunc(file)
-				if err == nil {
-					markScanned(file, len(findings))
+			Analyze: func(jobCtx context.Context) core.AnalysisResult {
+				result := analyze(jobCtx, file)
+				if !hasErrorDiagnostic(result.Diagnostics) {
+					if err := markScanned(file, len(result.Findings)); err != nil {
+						result.Diagnostics = append(result.Diagnostics, core.Diagnostic{
+							Kind: core.DiagnosticIntegration, Severity: core.DiagnosticWarning,
+							Code: "cache.mark-failed", Source: "file-cache", Message: err.Error(), Cause: err,
+						})
+					}
 				}
-				return findings, err
+				return result
 			},
 		})
 	}
 
-	results := wp.Run(jobs)
-	for _, r := range results {
-		if r.Error != nil {
-			continue
-		}
-		allFindings = append(allFindings, r.Findings...)
+	analysis := core.AnalysisResult{Findings: []core.Finding{}, Diagnostics: []core.Diagnostic{}}
+	for _, result := range pool.Run(ctx, jobs) {
+		analysis.Findings = append(analysis.Findings, result.Findings...)
+		analysis.Diagnostics = append(analysis.Diagnostics, result.Diagnostics...)
 	}
+	return analysis
+}
 
-	return allFindings, nil
+func hasErrorDiagnostic(diagnostics []core.Diagnostic) bool {
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Severity == core.DiagnosticError {
+			return true
+		}
+	}
+	return false
 }

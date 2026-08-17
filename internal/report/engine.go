@@ -2,7 +2,7 @@ package report
 
 import (
 	"github.com/KJyang-0114/sift/internal/config"
-	"github.com/KJyang-0114/sift/internal/static"
+	"github.com/KJyang-0114/sift/internal/core"
 	"time"
 )
 
@@ -17,14 +17,14 @@ func NewEngine(cfg *config.Config) *Engine {
 }
 
 // Render outputs the report in the specified format.
-func (e *Engine) Render(findings []static.Finding, target string, duration time.Duration, format string) {
+func (e *Engine) Render(findings []core.Finding, diagnostics []core.Diagnostic, target string, duration time.Duration, format string) {
 	switch format {
 	case "json":
-		RenderJSON(findings, target, duration)
+		RenderJSON(findings, diagnostics, target, duration)
 	case "llm":
 		RenderLLM(findings, target)
 	case "sarif":
-		RenderSARIF(findings, target)
+		RenderSARIF(findings, diagnostics, target)
 	default:
 		RenderTerminal(findings, target, duration)
 	}

@@ -1,17 +1,18 @@
 package scan
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/KJyang-0114/sift/internal/agent"
 	"github.com/KJyang-0114/sift/internal/cache"
 	"github.com/KJyang-0114/sift/internal/config"
+	"github.com/KJyang-0114/sift/internal/core"
 	"github.com/KJyang-0114/sift/internal/report"
 	"github.com/KJyang-0114/sift/internal/static"
 	"github.com/KJyang-0114/sift/internal/store"
@@ -20,10 +21,11 @@ import (
 // Orchestrator coordinates all analyzers and executes the fully automated scan workflow.
 type Orchestrator struct {
 	cfg              *config.Config
-	staticAnalyzers  []static.Analyzer
-	dynamicAnalyzers []static.Analyzer
+	staticAnalyzers  []core.Analyzer
+	dynamicAnalyzers []core.Analyzer
 	reporters        *report.Engine
-	lastFindings     []static.Finding
+	lastFindings     []core.Finding
+	lastDiagnostics  []core.Diagnostic
 	fileCache        *cache.FileCache
 	dbStore          *store.Store
 	pool             *WorkerPool
@@ -43,8 +45,8 @@ func NewOrchestrator(cfg *config.Config) *Orchestrator {
 	semgrep := static.NewSemgrepAnalyzer(rulesDir, time.Duration(cfg.Scan.Timeout)*time.Second)
 	pkgVerifier := agent.NewPackageVerifier()
 
-	staticAnalyzers := []static.Analyzer{semgrep, pkgVerifier}
-	var dynamicAnalyzers []static.Analyzer
+	staticAnalyzers := []core.Analyzer{semgrep, pkgVerifier}
+	dynamicAnalyzers := []core.Analyzer{}
 
 	// If LLM is configured, add semantic analysis and test generation
 	if cfg.LLM.Provider != config.ProviderOffline && cfg.LLM.APIKey != "" {
@@ -78,13 +80,18 @@ func NewOrchestrator(cfg *config.Config) *Orchestrator {
 
 // Run executes the full scan workflow.
 func (o *Orchestrator) Run(target string, format string) error {
-	target = absTarget(target)
+	return o.RunContext(context.Background(), target, format)
+}
+
+// RunContext executes the full scan workflow with cancellation.
+func (o *Orchestrator) RunContext(ctx context.Context, target string, format string) error {
+	root, targets := scanRootAndTargets(target)
 
 	verbose := format != "json" && format != "sarif"
 
 	// diff mode: only scan git-changed files
 	if o.diffRef != "" {
-		changed, err := gitChangedFiles(target, o.diffRef)
+		changed, err := gitChangedFiles(root, o.diffRef)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "  ⚠️  unable to get git diff: %v\n", err)
 			// fall through to full scan
@@ -97,27 +104,32 @@ func (o *Orchestrator) Run(target string, format string) error {
 			if verbose {
 				fmt.Printf("  📋 diff mode (ref=%s): %d changed file(s)\n", o.diffRef, len(changed))
 			}
-			target = strings.Join(changed, ",")
+			targets = changed
 		}
+	}
+	request, err := core.NewScanRequest(root, targets)
+	if err != nil {
+		return fmt.Errorf("create scan request: %w", err)
 	}
 
 	if verbose {
-		fmt.Printf("  🔍 Sift scanning: %s\n\n", target)
+		fmt.Printf("  🔍 Sift scanning: %s\n\n", root)
 	}
 
 	start := time.Now()
-	var allFindings []static.Finding
+	allFindings := []core.Finding{}
+	allDiagnostics := []core.Diagnostic{}
 
 	// Phase 1: Static Analysis (Semgrep + package verification + LLM semantic analysis)
 	if verbose {
 		fmt.Println("  ── Phase 1: Static Analysis ──")
 	}
-	results := o.runAnalyzers(o.staticAnalyzers, target)
+	results := o.runAnalyzers(ctx, o.staticAnalyzers, request)
 	for _, r := range results {
-		if r.Error != nil {
-			fmt.Fprintf(os.Stderr, "  ⚠️  %s: %v\n", r.Analyzer, r.Error)
-			continue
+		for _, diagnostic := range r.Diagnostics {
+			fmt.Fprintf(os.Stderr, "  ⚠️  %s [%s]: %s\n", r.Analyzer, diagnostic.Code, diagnostic.Message)
 		}
+		allDiagnostics = append(allDiagnostics, r.Diagnostics...)
 		if verbose {
 			fmt.Printf("  ✅ %s: %d issue(s)\n", r.Analyzer, len(r.Findings))
 		}
@@ -130,12 +142,12 @@ func (o *Orchestrator) Run(target string, format string) error {
 			fmt.Println()
 			fmt.Println("  ── Phase 2: Dynamic Testing ──")
 		}
-		dynResults := o.runAnalyzers(o.dynamicAnalyzers, target)
+		dynResults := o.runAnalyzers(ctx, o.dynamicAnalyzers, request)
 		for _, r := range dynResults {
-			if r.Error != nil {
-				fmt.Fprintf(os.Stderr, "  ⚠️  %s: %v\n", r.Analyzer, r.Error)
-				continue
+			for _, diagnostic := range r.Diagnostics {
+				fmt.Fprintf(os.Stderr, "  ⚠️  %s [%s]: %s\n", r.Analyzer, diagnostic.Code, diagnostic.Message)
 			}
+			allDiagnostics = append(allDiagnostics, r.Diagnostics...)
 			if verbose {
 				fmt.Printf("  ✅ %s: %d issue(s)\n", r.Analyzer, len(r.Findings))
 			}
@@ -149,42 +161,53 @@ func (o *Orchestrator) Run(target string, format string) error {
 
 	// Output report
 	o.lastFindings = allFindings
+	o.lastDiagnostics = allDiagnostics
 
 	// Enterprise: persist to SQLite + cache
 	if o.dbStore != nil {
-		o.dbStore.SaveScan(target, time.Since(start), allFindings, 0)
+		o.dbStore.SaveScan(root, time.Since(start), allFindings, 0)
 	}
 	if o.fileCache != nil {
 		o.fileCache.Save()
 	}
 
-	o.reporters.Render(allFindings, target, time.Since(start), format)
+	o.reporters.Render(allFindings, allDiagnostics, root, time.Since(start), format)
 
 	return nil
 }
 
-// runAnalyzers runs all analyzers in parallel.
-func (o *Orchestrator) runAnalyzers(analyzers []static.Analyzer, target string) []static.Result {
-	var wg sync.WaitGroup
-	results := make([]static.Result, len(analyzers))
+// AnalyzerRunResult records one scheduled analyzer invocation.
+type AnalyzerRunResult struct {
+	Analyzer    string
+	Findings    []core.Finding
+	Diagnostics []core.Diagnostic
+	Duration    time.Duration
+}
 
-	for i, a := range analyzers {
-		wg.Add(1)
-		go func(idx int, analyzer static.Analyzer) {
-			defer wg.Done()
-			start := time.Now()
-			findings, err := analyzer.Analyze(target)
-			results[idx] = static.Result{
-				Analyzer: analyzer.Name(),
-				Target:   target,
-				Findings: findings,
-				Duration: time.Since(start),
-				Error:    err,
-			}
-		}(i, a)
+// runAnalyzers runs all analyzers through the context-aware worker pool.
+func (o *Orchestrator) runAnalyzers(ctx context.Context, analyzers []core.Analyzer, request core.ScanRequest) []AnalyzerRunResult {
+	jobs := make([]Job, 0, len(analyzers))
+	for _, analyzer := range analyzers {
+		analyzer := analyzer
+		jobs = append(jobs, Job{
+			Name: analyzer.Name(),
+			Analyze: func(jobCtx context.Context) core.AnalysisResult {
+				return analyzer.Analyze(jobCtx, request)
+			},
+		})
 	}
-
-	wg.Wait()
+	pool := o.pool
+	if pool == nil {
+		pool = NewWorkerPool(4, 0)
+	}
+	batch := pool.Run(ctx, jobs)
+	results := make([]AnalyzerRunResult, len(batch))
+	for i, result := range batch {
+		results[i] = AnalyzerRunResult{
+			Analyzer: result.Name, Findings: result.Findings,
+			Diagnostics: result.Diagnostics, Duration: result.Duration,
+		}
+	}
 	return results
 }
 
@@ -200,8 +223,17 @@ func findRulesDir() string {
 }
 
 // LastFindings returns all findings from the most recent scan.
-func (o *Orchestrator) LastFindings() []static.Finding {
-	return o.lastFindings
+func (o *Orchestrator) LastFindings() []core.Finding {
+	findings := make([]core.Finding, len(o.lastFindings))
+	copy(findings, o.lastFindings)
+	return findings
+}
+
+// LastDiagnostics returns diagnostics from the most recent scan.
+func (o *Orchestrator) LastDiagnostics() []core.Diagnostic {
+	diagnostics := make([]core.Diagnostic, len(o.lastDiagnostics))
+	copy(diagnostics, o.lastDiagnostics)
+	return diagnostics
 }
 
 // gitChangedFiles returns the list of files changed relative to the given git ref.
@@ -236,7 +268,7 @@ func gitChangedFiles(repoPath, ref string) ([]string, error) {
 	for _, f := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		f = strings.TrimSpace(f)
 		if f != "" {
-			files = append(files, filepath.Join(repoPath, f))
+			files = append(files, filepath.ToSlash(f))
 		}
 	}
 	return files, nil
@@ -247,4 +279,12 @@ func absTarget(target string) string {
 		return abs
 	}
 	return target
+}
+
+func scanRootAndTargets(target string) (string, []string) {
+	absolute := absTarget(target)
+	if info, err := os.Stat(absolute); err == nil && !info.IsDir() {
+		return filepath.Dir(absolute), []string{filepath.Base(absolute)}
+	}
+	return absolute, []string{"."}
 }

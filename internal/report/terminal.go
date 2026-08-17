@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/KJyang-0114/sift/internal/static"
+	"github.com/KJyang-0114/sift/internal/core"
 	"golang.org/x/term"
 )
 
@@ -23,31 +23,31 @@ const (
 	colorBold   = "\033[1m"
 )
 
-var severityIcon = map[static.Severity]string{
-	static.SeverityCritical: "🔴",
-	static.SeverityHigh:     "🟡",
-	static.SeverityMedium:   "🟠",
-	static.SeverityLow:      "🔵",
-	static.SeverityInfo:     "⚪",
+var severityIcon = map[core.Severity]string{
+	core.SeverityCritical: "🔴",
+	core.SeverityHigh:     "🟡",
+	core.SeverityMedium:   "🟠",
+	core.SeverityLow:      "🔵",
+	core.SeverityInfo:     "⚪",
 }
 
 // RenderTerminal outputs the scan report in color terminal format.
-func RenderTerminal(findings []static.Finding, target string, duration time.Duration) {
+func RenderTerminal(findings []core.Finding, target string, duration time.Duration) {
 	width := 80
 	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w < width {
 		width = w
 	}
 
-	groups := static.GroupBySeverity(findings)
-	critical := len(groups[static.SeverityCritical])
-	high := len(groups[static.SeverityHigh])
-	medium := len(groups[static.SeverityMedium])
-	low := len(groups[static.SeverityLow])
-	info := len(groups[static.SeverityInfo])
+	groups := core.GroupBySeverity(findings)
+	critical := len(groups[core.SeverityCritical])
+	high := len(groups[core.SeverityHigh])
+	medium := len(groups[core.SeverityMedium])
+	low := len(groups[core.SeverityLow])
+	info := len(groups[core.SeverityInfo])
 
 	printBar(width)
 	printLine(width, fmt.Sprintf("🔍 Sift Scan Report — %s", time.Now().Format("2006-01-02 15:04:05")))
-	printLine(width, fmt.Sprintf("Project: %s — Scan duration: %.1fs", target, duration.Seconds()))
+	printLine(width, fmt.Sprintf("Project: %s — Scan duration: %.1fs", safeDisplayTarget(target), duration.Seconds()))
 	printBar(width)
 
 	if len(findings) == 0 {
@@ -58,18 +58,18 @@ func RenderTerminal(findings []static.Finding, target string, duration time.Dura
 
 	// Summary line
 	summary := fmt.Sprintf("  %s Critical: %d  %s High: %d  %s Medium: %d  %s Low: %d  %s Info: %d",
-		severityIcon[static.SeverityCritical], critical,
-		severityIcon[static.SeverityHigh], high,
-		severityIcon[static.SeverityMedium], medium,
-		severityIcon[static.SeverityLow], low,
-		severityIcon[static.SeverityInfo], info,
+		severityIcon[core.SeverityCritical], critical,
+		severityIcon[core.SeverityHigh], high,
+		severityIcon[core.SeverityMedium], medium,
+		severityIcon[core.SeverityLow], low,
+		severityIcon[core.SeverityInfo], info,
 	)
 	printLine(width, summary)
 	printBar(width)
 	fmt.Println()
 
 	// Output sorted by severity
-	order := []static.Severity{static.SeverityCritical, static.SeverityHigh, static.SeverityMedium, static.SeverityLow, static.SeverityInfo}
+	order := []core.Severity{core.SeverityCritical, core.SeverityHigh, core.SeverityMedium, core.SeverityLow, core.SeverityInfo}
 
 	displayed := 0
 	maxDisplay := 20
@@ -94,18 +94,28 @@ func RenderTerminal(findings []static.Finding, target string, duration time.Dura
 	fmt.Printf("  %sSend to LLM for fixes: sift scan . --format llm | claude -p \"Fix all\"%s\n", colorGray, colorReset)
 }
 
-func renderFinding(f static.Finding, idx int) {
-	label := strings.ToUpper(f.ID[:1]) + f.ID[1:]
+func renderFinding(f core.Finding, idx int) {
+	label := f.ID
+	if label == "" {
+		label = f.Rule
+	}
+	if label != "" {
+		label = strings.ToUpper(label[:1]) + label[1:]
+	}
 	if len(label) > 60 {
 		label = label[:57] + "..."
 	}
 
 	fmt.Printf("  %s %s%s%s\n", severityIcon[f.Severity], colorBold+colorWhite, label, colorReset)
 	fmt.Printf("  %s────────────────────────────────────────────────%s\n", colorGray, colorReset)
-	fmt.Printf("  %sFile:%s    %s:%d\n", colorGray, colorReset, f.File, f.Line)
+	fmt.Printf("  %sFile:%s    %s:%d\n", colorGray, colorReset, f.Location.Path, f.Location.Line)
 
-	if f.Code != "" {
-		codePreview := strings.TrimSpace(f.Code)
+	code := ""
+	if len(f.Evidence) > 0 {
+		code = f.Evidence[0].Snippet
+	}
+	if code != "" {
+		codePreview := strings.TrimSpace(code)
 		if len(codePreview) > 100 {
 			codePreview = codePreview[:97] + "..."
 		}
@@ -113,6 +123,7 @@ func renderFinding(f static.Finding, idx int) {
 	}
 
 	fmt.Printf("  %sIssue:%s   %s\n", colorGray, colorReset, f.Message)
+	fmt.Printf("  %sConfidence:%s %s\n", colorGray, colorReset, f.Confidence)
 
 	if f.CWE != "" {
 		fmt.Printf("  %sCWE:%s     %s\n", colorGray, colorReset, f.CWE)

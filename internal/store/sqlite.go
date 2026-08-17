@@ -2,12 +2,14 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
-	"github.com/KJyang-0114/sift/internal/static"
+	"github.com/KJyang-0114/sift/internal/core"
 	_ "modernc.org/sqlite"
 )
 
@@ -55,15 +57,29 @@ func (s *Store) migrate() error {
 		`CREATE TABLE IF NOT EXISTS findings (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			scan_id INTEGER NOT NULL,
+			finding_uid TEXT NOT NULL DEFAULT '',
+			fingerprint TEXT NOT NULL DEFAULT '',
+			schema_version TEXT NOT NULL DEFAULT '2',
+			source TEXT NOT NULL DEFAULT 'legacy',
 			rule_id TEXT NOT NULL,
 			severity TEXT NOT NULL,
 			category TEXT,
+			confidence TEXT NOT NULL DEFAULT 'low',
 			file TEXT NOT NULL,
 			line INTEGER,
+			column_number INTEGER DEFAULT 0,
+			end_line INTEGER DEFAULT 0,
+			end_column INTEGER DEFAULT 0,
 			message TEXT,
 			code_snippet TEXT,
+			related_locations_json TEXT NOT NULL DEFAULT '[]',
+			evidence_json TEXT NOT NULL DEFAULT '[]',
+			remediation TEXT NOT NULL DEFAULT '',
+			help_uri TEXT,
 			cwe TEXT,
 			owasp TEXT,
+			suppressed INTEGER DEFAULT 0,
+			suppression_reason TEXT,
 			fixed INTEGER DEFAULT 0,
 			fixed_at DATETIME,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -81,11 +97,61 @@ func (s *Store) migrate() error {
 			return fmt.Errorf("migration failed (%s): %w", q[:30], err)
 		}
 	}
+	return s.ensureFindingColumns()
+}
+
+func (s *Store) ensureFindingColumns() error {
+	rows, err := s.db.Query(`PRAGMA table_info(findings)`)
+	if err != nil {
+		return err
+	}
+	existing := make(map[string]bool)
+	for rows.Next() {
+		var cid, notNull, primaryKey int
+		var name, dataType string
+		var defaultValue sql.NullString
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &primaryKey); err != nil {
+			rows.Close()
+			return err
+		}
+		existing[name] = true
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+
+	columns := []struct {
+		name       string
+		definition string
+	}{
+		{"finding_uid", `TEXT NOT NULL DEFAULT ''`},
+		{"fingerprint", `TEXT NOT NULL DEFAULT ''`},
+		{"schema_version", `TEXT NOT NULL DEFAULT '1'`},
+		{"source", `TEXT NOT NULL DEFAULT 'legacy'`},
+		{"confidence", `TEXT NOT NULL DEFAULT 'low'`},
+		{"column_number", `INTEGER DEFAULT 0`},
+		{"end_line", `INTEGER DEFAULT 0`},
+		{"end_column", `INTEGER DEFAULT 0`},
+		{"related_locations_json", `TEXT NOT NULL DEFAULT '[]'`},
+		{"evidence_json", `TEXT NOT NULL DEFAULT '[]'`},
+		{"remediation", `TEXT NOT NULL DEFAULT ''`},
+		{"help_uri", `TEXT`},
+		{"suppressed", `INTEGER DEFAULT 0`},
+		{"suppression_reason", `TEXT`},
+	}
+	for _, column := range columns {
+		if existing[column.name] {
+			continue
+		}
+		if _, err := s.db.Exec(`ALTER TABLE findings ADD COLUMN ` + column.name + ` ` + column.definition); err != nil {
+			return fmt.Errorf("add findings.%s: %w", column.name, err)
+		}
+	}
 	return nil
 }
 
 // SaveScan saves a scan and all its findings.
-func (s *Store) SaveScan(target string, duration time.Duration, findings []static.Finding, filesScanned int) (int64, error) {
+func (s *Store) SaveScan(target string, duration time.Duration, findings []core.Finding, filesScanned int) (int64, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return 0, err
@@ -96,7 +162,7 @@ func (s *Store) SaveScan(target string, duration time.Duration, findings []stati
 	result, err := tx.Exec(
 		`INSERT INTO scans (target, started_at, duration_ms, total_findings, files_scanned)
 		 VALUES (?, datetime('now'), ?, ?, ?)`,
-		target, duration.Milliseconds(), len(findings), filesScanned,
+		safeStoredTarget(target), duration.Milliseconds(), len(findings), filesScanned,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("failed to save scan record: %w", err)
@@ -106,8 +172,11 @@ func (s *Store) SaveScan(target string, duration time.Duration, findings []stati
 
 	// Save each finding
 	stmt, err := tx.Prepare(
-		`INSERT INTO findings (scan_id, rule_id, severity, category, file, line, message, code_snippet, cwe, owasp)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO findings (
+			scan_id, finding_uid, fingerprint, schema_version, source, rule_id, severity, category, confidence,
+			file, line, column_number, end_line, end_column, message, code_snippet,
+			related_locations_json, evidence_json, remediation, help_uri, cwe, owasp, suppressed, suppression_reason
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	)
 	if err != nil {
 		return 0, err
@@ -115,11 +184,27 @@ func (s *Store) SaveScan(target string, duration time.Duration, findings []stati
 	defer stmt.Close()
 
 	for _, f := range findings {
-		code := f.Code
+		code := ""
+		if len(f.Evidence) > 0 {
+			code = f.Evidence[0].Snippet
+		}
 		if len(code) > 500 {
 			code = code[:500]
 		}
-		_, err := stmt.Exec(scanID, f.Rule, string(f.Severity), f.Category, f.File, f.Line, f.Message, code, f.CWE, f.OWASP)
+		relatedJSON, err := json.Marshal(f.RelatedLocations)
+		if err != nil {
+			return 0, fmt.Errorf("encode related locations: %w", err)
+		}
+		evidenceJSON, err := json.Marshal(f.Evidence)
+		if err != nil {
+			return 0, fmt.Errorf("encode evidence: %w", err)
+		}
+		_, err = stmt.Exec(
+			scanID, f.ID, f.Fingerprint, f.SchemaVersion, f.Source, f.Rule, string(f.Severity), f.Category, string(f.Confidence),
+			f.Location.Path, f.Location.Line, f.Location.Column, f.Location.EndLine, f.Location.EndColumn, f.Message, code,
+			string(relatedJSON), string(evidenceJSON), f.Remediation, f.HelpURI, f.CWE, f.OWASP,
+			f.Suppression.Suppressed, f.Suppression.Reason,
+		)
 		if err != nil {
 			return 0, fmt.Errorf("failed to save finding: %w", err)
 		}
@@ -133,9 +218,11 @@ func (s *Store) SaveScan(target string, duration time.Duration, findings []stati
 }
 
 // GetScanFindings returns all findings for a specific scan.
-func (s *Store) GetScanFindings(scanID int64) ([]static.Finding, error) {
+func (s *Store) GetScanFindings(scanID int64) ([]core.Finding, error) {
 	rows, err := s.db.Query(
-		`SELECT rule_id, severity, category, file, line, message, code_snippet, cwe, owasp
+		`SELECT finding_uid, fingerprint, schema_version, source, rule_id, severity, category, confidence,
+			file, line, column_number, end_line, end_column, message, code_snippet,
+			related_locations_json, evidence_json, remediation, help_uri, cwe, owasp, suppressed, suppression_reason
 		 FROM findings WHERE scan_id = ? ORDER BY severity, file, line`, scanID,
 	)
 	if err != nil {
@@ -147,9 +234,11 @@ func (s *Store) GetScanFindings(scanID int64) ([]static.Finding, error) {
 }
 
 // GetUnfixedFindings returns all unfixed findings.
-func (s *Store) GetUnfixedFindings() ([]static.Finding, error) {
+func (s *Store) GetUnfixedFindings() ([]core.Finding, error) {
 	rows, err := s.db.Query(
-		`SELECT rule_id, severity, category, file, line, message, code_snippet, cwe, owasp
+		`SELECT finding_uid, fingerprint, schema_version, source, rule_id, severity, category, confidence,
+			file, line, column_number, end_line, end_column, message, code_snippet,
+			related_locations_json, evidence_json, remediation, help_uri, cwe, owasp, suppressed, suppression_reason
 		 FROM findings WHERE fixed = 0 ORDER BY severity DESC, created_at DESC`,
 	)
 	if err != nil {
@@ -228,28 +317,95 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-func scanFindings(rows *sql.Rows) ([]static.Finding, error) {
-	var findings []static.Finding
+func scanFindings(rows *sql.Rows) ([]core.Finding, error) {
+	findings := []core.Finding{}
 	for rows.Next() {
-		var ruleID, severity, file, message string
-		var category, codeSnippet, cwe, owasp sql.NullString
-		var line sql.NullInt64
+		var findingID, fingerprint, schemaVersion, source, ruleID, severity, confidence, file, message string
+		var category, codeSnippet, relatedJSON, evidenceJSON, remediation, helpURI, cwe, owasp, suppressionReason sql.NullString
+		var line, column, endLine, endColumn sql.NullInt64
+		var suppressed bool
 
-		if err := rows.Scan(&ruleID, &severity, &category, &file, &line, &message, &codeSnippet, &cwe, &owasp); err != nil {
+		if err := rows.Scan(
+			&findingID, &fingerprint, &schemaVersion, &source, &ruleID, &severity, &category, &confidence,
+			&file, &line, &column, &endLine, &endColumn, &message, &codeSnippet,
+			&relatedJSON, &evidenceJSON, &remediation, &helpURI, &cwe, &owasp, &suppressed, &suppressionReason,
+		); err != nil {
+			return nil, err
+		}
+
+		if findingID == "" || fingerprint == "" || schemaVersion != core.FindingSchemaVersion {
+			legacy, err := legacyFinding(ruleID, severity, category.String, file, int(line.Int64), message, codeSnippet.String, cwe.String, owasp.String)
+			if err != nil {
+				return nil, err
+			}
+			findings = append(findings, legacy)
 			continue
 		}
 
-		findings = append(findings, static.Finding{
-			Rule:     ruleID,
-			Severity: static.Severity(severity),
-			Category: category.String,
-			File:     file,
-			Line:     int(line.Int64),
-			Message:  message,
-			Code:     codeSnippet.String,
-			CWE:      cwe.String,
-			OWASP:    owasp.String,
+		related := []core.Location{}
+		if relatedJSON.String != "" {
+			if err := json.Unmarshal([]byte(relatedJSON.String), &related); err != nil {
+				return nil, fmt.Errorf("decode related locations: %w", err)
+			}
+		}
+		evidence := []core.Evidence{}
+		if evidenceJSON.String != "" {
+			if err := json.Unmarshal([]byte(evidenceJSON.String), &evidence); err != nil {
+				return nil, fmt.Errorf("decode evidence: %w", err)
+			}
+		}
+		findings = append(findings, core.Finding{
+			SchemaVersion: schemaVersion, ID: findingID, Fingerprint: fingerprint,
+			Source: source, Rule: ruleID, Message: message, Severity: core.Severity(severity),
+			Category: category.String, Confidence: core.Confidence(confidence),
+			Location: core.Location{
+				Path: file, Line: int(line.Int64), Column: int(column.Int64),
+				EndLine: int(endLine.Int64), EndColumn: int(endColumn.Int64),
+			},
+			RelatedLocations: related, Evidence: evidence, Remediation: remediation.String,
+			HelpURI: helpURI.String, CWE: cwe.String, OWASP: owasp.String,
+			Suppression: core.Suppression{Suppressed: suppressed, Reason: suppressionReason.String},
 		})
 	}
 	return findings, nil
+}
+
+func legacyFinding(rule, severity, category, file string, line int, message, code, cwe, owasp string) (core.Finding, error) {
+	if !core.Severity(severity).Valid() {
+		severity = string(core.SeverityMedium)
+	}
+	if category == "" {
+		category = "legacy"
+	}
+	if strings.TrimSpace(message) == "" {
+		message = "Imported legacy finding"
+	}
+	path := safeLegacyPath(file)
+	evidence := core.Evidence{Kind: core.EvidenceOther, Snippet: code, Description: "Imported from a Finding v1 history row."}
+	return core.NewFinding(core.FindingInput{
+		Source: "legacy", Rule: rule, Message: message, Severity: core.Severity(severity),
+		Category: category, Confidence: core.ConfidenceLow, Location: core.Location{Path: path, Line: line},
+		Evidence:    []core.Evidence{evidence},
+		Remediation: "Review and remediate this imported legacy finding.",
+		CWE:         cwe, OWASP: owasp, StableKey: fmt.Sprintf("%d:%s", line, message),
+	})
+}
+
+func safeLegacyPath(file string) string {
+	file = strings.TrimSpace(file)
+	if filepath.IsAbs(file) || (len(file) >= 2 && file[1] == ':') {
+		file = filepath.Base(file)
+	}
+	file = filepath.ToSlash(filepath.Clean(file))
+	if file == "." || file == ".." || strings.HasPrefix(file, "../") {
+		return "legacy-unknown"
+	}
+	return file
+}
+
+func safeStoredTarget(target string) string {
+	if filepath.IsAbs(target) {
+		return filepath.Base(filepath.Clean(target))
+	}
+	return filepath.ToSlash(filepath.Clean(target))
 }

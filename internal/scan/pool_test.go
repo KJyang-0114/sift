@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
@@ -9,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/KJyang-0114/sift/internal/static"
+	"github.com/KJyang-0114/sift/internal/core"
 )
 
 func TestWorkerPoolLimitsConcurrencyAndPreservesOrder(t *testing.T) {
@@ -21,7 +22,7 @@ func TestWorkerPoolLimitsConcurrencyAndPreservesOrder(t *testing.T) {
 	jobs := make([]Job, 8)
 	for i := range jobs {
 		name := strconv.Itoa(i)
-		jobs[i] = Job{Name: name, Analyze: func() ([]static.Finding, error) {
+		jobs[i] = Job{Name: name, Analyze: func(context.Context) core.AnalysisResult {
 			current := active.Add(1)
 			defer active.Add(-1)
 			for {
@@ -32,12 +33,12 @@ func TestWorkerPoolLimitsConcurrencyAndPreservesOrder(t *testing.T) {
 			}
 			started <- struct{}{}
 			<-release
-			return []static.Finding{{ID: name}}, nil
+			return core.AnalysisResult{Findings: []core.Finding{{ID: name}}, Diagnostics: []core.Diagnostic{}}
 		}}
 	}
 
 	done := make(chan []BatchResult, 1)
-	go func() { done <- pool.Run(jobs) }()
+	go func() { done <- pool.Run(context.Background(), jobs) }()
 	<-started
 	<-started
 	close(release)
@@ -54,18 +55,50 @@ func TestWorkerPoolLimitsConcurrencyAndPreservesOrder(t *testing.T) {
 	}
 }
 
-func TestWorkerPoolStatsCountFailures(t *testing.T) {
+func TestWorkerPoolPreservesPartialResultsAndCountsErrorDiagnostics(t *testing.T) {
 	pool := NewWorkerPool(1, time.Second)
-	pool.Run([]Job{
-		{Name: "ok", Analyze: func() ([]static.Finding, error) { return nil, nil }},
-		{Name: "failed", Analyze: func() ([]static.Finding, error) { return nil, errors.New("failed") }},
+	results := pool.Run(context.Background(), []Job{
+		{Name: "ok", Analyze: func(context.Context) core.AnalysisResult {
+			return core.AnalysisResult{Findings: []core.Finding{{ID: "kept"}}, Diagnostics: []core.Diagnostic{}}
+		}},
+		{Name: "partial", Analyze: func(context.Context) core.AnalysisResult {
+			return core.AnalysisResult{
+				Findings: []core.Finding{{ID: "partial"}},
+				Diagnostics: []core.Diagnostic{{
+					Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticError,
+					Code: "test.failure", Message: "failed",
+				}},
+			}
+		}},
 	})
 
+	if len(results[1].Findings) != 1 || len(results[1].Diagnostics) != 1 {
+		t.Fatalf("partial result was discarded: %#v", results[1])
+	}
 	got := pool.Stats()
 	for _, fragment := range []string{"workers=1", "jobs=2", "completed=2", "failed=1"} {
 		if !strings.Contains(got, fragment) {
 			t.Fatalf("Stats() = %q, want fragment %q", got, fragment)
 		}
+	}
+}
+
+func TestWorkerPoolTimeoutBecomesTypedDiagnostic(t *testing.T) {
+	pool := NewWorkerPool(1, 20*time.Millisecond)
+	results := pool.Run(context.Background(), []Job{{
+		Name: "slow",
+		Analyze: func(ctx context.Context) core.AnalysisResult {
+			<-ctx.Done()
+			return core.AnalysisResult{Findings: []core.Finding{}, Diagnostics: []core.Diagnostic{}}
+		},
+	}})
+
+	if len(results) != 1 || len(results[0].Diagnostics) != 1 {
+		t.Fatalf("results = %#v", results)
+	}
+	diagnostic := results[0].Diagnostics[0]
+	if diagnostic.Code != "analyzer.timeout" || diagnostic.Kind != core.DiagnosticAnalyzer {
+		t.Fatalf("unexpected timeout diagnostic: %#v", diagnostic)
 	}
 }
 
@@ -76,16 +109,23 @@ func TestScanWithCacheAnalyzesChangedAndUncertainFiles(t *testing.T) {
 	var analyzed []string
 	marked := map[string]int{}
 
-	findings, err := pool.ScanWithCache(
+	result := pool.ScanWithCache(
+		context.Background(),
 		[]string{"unchanged.go", "changed.go", "uncertain.go", "broken.go"},
-		func(path string) ([]static.Finding, error) {
+		func(_ context.Context, path string) core.AnalysisResult {
 			mu.Lock()
 			analyzed = append(analyzed, path)
 			mu.Unlock()
 			if path == "broken.go" {
-				return nil, errors.New("analysis failed")
+				return core.AnalysisResult{
+					Findings: []core.Finding{},
+					Diagnostics: []core.Diagnostic{{
+						Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticError,
+						Code: "analysis.failed", Message: "failed",
+					}},
+				}
 			}
-			return []static.Finding{{ID: path}}, nil
+			return core.AnalysisResult{Findings: []core.Finding{{ID: path}}, Diagnostics: []core.Diagnostic{}}
 		},
 		func(path string) (bool, error) {
 			if path == "uncertain.go" || path == "broken.go" {
@@ -100,16 +140,14 @@ func TestScanWithCacheAnalyzesChangedAndUncertainFiles(t *testing.T) {
 			return nil
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+
 	mu.Lock()
 	defer mu.Unlock()
 	if len(analyzed) != 3 {
 		t.Fatalf("analyzed files = %#v, want three changed/uncertain files", analyzed)
 	}
-	if len(findings) != 2 {
-		t.Fatalf("findings = %#v, want successful results from two files", findings)
+	if len(result.Findings) != 2 || len(result.Diagnostics) != 1 {
+		t.Fatalf("result = %#v, want two findings and one diagnostic", result)
 	}
 	if marked["changed.go"] != 1 || marked["uncertain.go"] != 1 {
 		t.Fatalf("marked = %#v, want successful files recorded", marked)

@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/KJyang-0114/sift/internal/config"
+	"github.com/KJyang-0114/sift/internal/core"
 	"github.com/KJyang-0114/sift/internal/llm"
 	"github.com/KJyang-0114/sift/internal/securepath"
-	"github.com/KJyang-0114/sift/internal/static"
 )
 
 // SemanticAnalyzer uses LLM to perform semantic-level security and logic analysis on code.
@@ -20,6 +20,8 @@ type SemanticAnalyzer struct {
 	client llm.Client
 	cfg    *config.Config
 }
+
+var _ core.Analyzer = (*SemanticAnalyzer)(nil)
 
 // NewSemanticAnalyzer creates a semantic analyzer.
 func NewSemanticAnalyzer(cfg *config.Config) (*SemanticAnalyzer, error) {
@@ -41,44 +43,50 @@ func (sa *SemanticAnalyzer) Name() string {
 	return "llm-semantic"
 }
 
-// Analyze performs LLM semantic analysis on the target code.
-func (sa *SemanticAnalyzer) Analyze(target string) ([]static.Finding, error) {
+// Analyze performs LLM semantic analysis on the requested source files.
+func (sa *SemanticAnalyzer) Analyze(ctx context.Context, request core.ScanRequest) core.AnalysisResult {
+	result := core.AnalysisResult{Findings: []core.Finding{}, Diagnostics: []core.Diagnostic{}}
 	// Collect files to analyze (max 20 files to control costs)
-	files, err := sa.collectFiles(target, 20)
+	files, err := sa.collectFiles(request.AbsoluteTargets(), 20)
 	if err != nil {
-		return nil, err
+		result.Diagnostics = append(result.Diagnostics, llmDiagnostic("llm.collect-files", err))
+		return result
 	}
 
 	if len(files) == 0 {
-		return nil, nil
+		return result
 	}
-
-	var allFindings []static.Finding
 
 	// Analyze each file individually
 	for _, file := range files {
-		findings, err := sa.analyzeFile(target, file)
-		if err != nil {
-			// Skip individual file analysis failures, do not abort the overall scan
-			fmt.Fprintf(os.Stderr, "  ⚠️  LLM analysis of %s failed: %v\n", file, err)
-			continue
-		}
-		allFindings = append(allFindings, findings...)
+		fileResult := sa.analyzeFile(ctx, request, file)
+		result.Findings = append(result.Findings, fileResult.Findings...)
+		result.Diagnostics = append(result.Diagnostics, fileResult.Diagnostics...)
 	}
 
-	return allFindings, nil
+	return result
 }
 
 // analyzeFile uses LLM to analyze a single file.
-func (sa *SemanticAnalyzer) analyzeFile(baseDir, path string) ([]static.Finding, error) {
-	content, err := securepath.ReadFile(baseDir, path)
+func (sa *SemanticAnalyzer) analyzeFile(ctx context.Context, request core.ScanRequest, file string) core.AnalysisResult {
+	result := core.AnalysisResult{Findings: []core.Finding{}, Diagnostics: []core.Diagnostic{}}
+	relativePath, err := request.RelativePath(file)
 	if err != nil {
-		return nil, err
+		result.Diagnostics = append(result.Diagnostics, core.Diagnostic{
+			Kind: core.DiagnosticTarget, Severity: core.DiagnosticError,
+			Code: "llm.location.outside-root", Source: sa.Name(), Message: "LLM target is outside the scan root", Cause: err,
+		})
+		return result
+	}
+	content, err := securepath.ReadFile(request.Root(), relativePath)
+	if err != nil {
+		result.Diagnostics = append(result.Diagnostics, llmDiagnostic("llm.read-file", err))
+		return result
 	}
 
 	// Skip empty files
 	if len(strings.TrimSpace(string(content))) == 0 {
-		return nil, nil
+		return result
 	}
 
 	// Limit token usage: max 8000 characters per file
@@ -87,20 +95,29 @@ func (sa *SemanticAnalyzer) analyzeFile(baseDir, path string) ([]static.Finding,
 		code = code[:8000] + "\n// ... (truncated)"
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	result, err := sa.client.Chat(ctx, semanticSystemPrompt, fmt.Sprintf(semanticUserTemplate, path, detectLang(path), code))
+	modelOutput, err := sa.client.Chat(callCtx, semanticSystemPrompt, fmt.Sprintf(semanticUserTemplate, relativePath, detectLang(relativePath), code))
 	if err != nil {
-		return nil, err
+		result.Diagnostics = append(result.Diagnostics, llmDiagnostic("llm.request", err))
+		return result
 	}
 
-	return parseSemanticResult(result, path)
+	result.Findings, result.Diagnostics = parseSemanticResult(modelOutput, request, file, code)
+	return result
+}
+
+func llmDiagnostic(code string, err error) core.Diagnostic {
+	return core.Diagnostic{
+		Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticWarning,
+		Code: code, Source: "llm-semantic", Message: err.Error(), Cause: err,
+	}
 }
 
 // collectFiles collects files suitable for LLM analysis from the target directory.
 // When target is a comma-separated list (diff mode), each entry is checked individually.
-func (sa *SemanticAnalyzer) collectFiles(target string, maxFiles int) ([]string, error) {
+func (sa *SemanticAnalyzer) collectFiles(targets []string, maxFiles int) ([]string, error) {
 	var files []string
 
 	// Priority file extensions
@@ -117,12 +134,11 @@ func (sa *SemanticAnalyzer) collectFiles(target string, maxFiles int) ([]string,
 		"venv": true, ".venv": true, "site-packages": true,
 	}
 
-	// Handle comma-separated targets (diff mode)
-	for _, t := range splitCommaTargets(target) {
+	for _, target := range targets {
 		if len(files) >= maxFiles {
 			break
 		}
-		err := filepath.Walk(t, func(path string, info os.FileInfo, err error) error {
+		err := filepath.Walk(target, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return nil
 			}
@@ -240,35 +256,67 @@ type semanticFinding struct {
 	Category string `json:"category"`
 }
 
-func parseSemanticResult(result string, file string) ([]static.Finding, error) {
+func parseSemanticResult(modelOutput string, request core.ScanRequest, file, source string) ([]core.Finding, []core.Diagnostic) {
 	// LLM sometimes adds extra text before/after JSON, need to extract the JSON array
-	jsonStr := extractJSONArray(result)
+	jsonStr := extractJSONArray(modelOutput)
 	if jsonStr == "" {
-		return nil, nil
+		err := fmt.Errorf("model response did not contain a JSON array")
+		return []core.Finding{}, []core.Diagnostic{llmDiagnostic("llm.invalid-output", err)}
 	}
 
 	var sf []semanticFinding
 	if err := json.Unmarshal([]byte(jsonStr), &sf); err != nil {
-		// JSON parse failure should not abort the entire scan
-		return nil, nil
+		return []core.Finding{}, []core.Diagnostic{llmDiagnostic("llm.invalid-output", err)}
 	}
 
-	var findings []static.Finding
+	relativePath, err := request.RelativePath(file)
+	if err != nil {
+		return []core.Finding{}, []core.Diagnostic{{
+			Kind: core.DiagnosticTarget, Severity: core.DiagnosticError,
+			Code: "llm.location.outside-root", Source: "llm-semantic", Message: "LLM returned a location outside the scan root", Cause: err,
+		}}
+	}
+
+	findings := []core.Finding{}
+	diagnostics := []core.Diagnostic{}
 	for _, f := range sf {
 		sev := mapLLMSeverity(f.Severity)
-		findings = append(findings, static.Finding{
-			ID:       "sift.llm-" + f.Category,
-			Rule:     "sift.llm-" + f.Category,
-			Message:  fmt.Sprintf("[LLM] %s", f.Message),
-			Severity: sev,
-			Category: f.Category,
-			File:     file,
-			Line:     f.Line,
-			Column:   0,
+		category := strings.TrimSpace(f.Category)
+		if category == "" {
+			category = "security"
+		}
+		evidence := []core.Evidence{}
+		if snippet := sourceLine(source, f.Line); snippet != "" {
+			evidence = append(evidence, core.Evidence{Kind: core.EvidenceCode, Snippet: snippet})
+		}
+		evidence = append(evidence, core.Evidence{
+			Kind:        core.EvidenceModel,
+			Description: "An optional language model identified this candidate; it requires deterministic confirmation before blocking.",
 		})
+		finding, findingErr := core.NewFinding(core.FindingInput{
+			Source: "llm-semantic", Rule: "sift.llm-" + category,
+			Message: fmt.Sprintf("[LLM] %s", strings.TrimSpace(f.Message)), Severity: sev,
+			Category: category, Confidence: core.ConfidenceLow,
+			Location: core.Location{Path: relativePath, Line: f.Line}, Evidence: evidence,
+			Remediation: "Confirm the reported data flow with deterministic analysis before applying a targeted fix.",
+			StableKey:   fmt.Sprintf("%d:%s", f.Line, strings.TrimSpace(f.Message)),
+		})
+		if findingErr != nil {
+			diagnostics = append(diagnostics, llmDiagnostic("llm.invalid-finding", findingErr))
+			continue
+		}
+		findings = append(findings, finding)
 	}
 
-	return findings, nil
+	return findings, diagnostics
+}
+
+func sourceLine(source string, line int) string {
+	lines := strings.Split(source, "\n")
+	if line <= 0 || line > len(lines) {
+		return ""
+	}
+	return strings.TrimSpace(lines[line-1])
 }
 
 func extractJSONArray(s string) string {
@@ -280,17 +328,17 @@ func extractJSONArray(s string) string {
 	return s[start : end+1]
 }
 
-func mapLLMSeverity(s string) static.Severity {
+func mapLLMSeverity(s string) core.Severity {
 	switch strings.ToLower(s) {
 	case "critical":
-		return static.SeverityCritical
+		return core.SeverityCritical
 	case "high":
-		return static.SeverityHigh
+		return core.SeverityHigh
 	case "medium":
-		return static.SeverityMedium
+		return core.SeverityMedium
 	case "low":
-		return static.SeverityLow
+		return core.SeverityLow
 	default:
-		return static.SeverityMedium
+		return core.SeverityMedium
 	}
 }
