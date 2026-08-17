@@ -150,9 +150,9 @@ This is an intentionally breaking internal and JSON schema change. The CLI comma
 - Add `MIGRATION.md`
 
 - [x] Use compiler failures and `rg 'static\.Finding|\.File|\.Line|\.Code'` to migrate every remaining v1 consumer.
-- [ ] Document JSON field mappings, analyzer interface changes, fingerprint behavior, persistence migration, and rollback.
+- [x] Document JSON field mappings, analyzer interface changes, fingerprint behavior, persistence migration, and rollback.
 - [ ] Run formatting, vet, all tests, race tests where supported, and three-platform builds.
-- [ ] Commit as `docs: document Finding v2 migration`.
+- [x] Commit as `docs: document Finding v2 migration`.
 
 ## Task 8: PR verification and handoff
 
