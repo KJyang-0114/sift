@@ -60,11 +60,11 @@ This is an intentionally breaking internal and JSON schema change. The CLI comma
 - Add `internal/core/severity.go`
 - Add `internal/core/severity_test.go`
 
-- [ ] Write failing table tests for enum validation and severity filtering/grouping.
-- [ ] Write failing tests for required fields, safe relative paths, bounded evidence, deterministic IDs/fingerprints, stable slash normalization, and secret/absolute-root exclusion.
-- [ ] Implement the smallest typed model and constructor that passes the tests.
-- [ ] Run `go test ./internal/core -count=1`.
-- [ ] Commit as `feat: add Finding v2 core model`.
+- [x] Write failing table tests for enum validation and severity filtering/grouping.
+- [x] Write failing tests for required fields, safe relative paths, bounded evidence, deterministic IDs/fingerprints, stable slash normalization, and secret/absolute-root exclusion.
+- [x] Implement the smallest typed model and constructor that passes the tests.
+- [x] Run `go test ./internal/core -count=1`.
+- [x] Commit as `feat: add Finding v2 core model`.
 
 ## Task 2: Immutable requests and typed analyzer outcomes
 
