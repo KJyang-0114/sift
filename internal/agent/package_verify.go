@@ -226,8 +226,8 @@ func parsePackageJSON(path string) []string {
 	}
 
 	var pkg struct {
-		Dependencies    map[string]string `json:"dependencies"`
-		DevDependencies map[string]string `json:"devDependencies"`
+		Dependencies     map[string]string `json:"dependencies"`
+		DevDependencies  map[string]string `json:"devDependencies"`
 		PeerDependencies map[string]string `json:"peerDependencies"`
 	}
 	if err := json.Unmarshal(data, &pkg); err != nil {

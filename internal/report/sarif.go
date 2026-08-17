@@ -9,6 +9,15 @@ import (
 
 // RenderSARIF outputs the report in SARIF 2.1.0 format (GitHub Code Scanning compatible).
 func RenderSARIF(findings []static.Finding, target string) {
+	out, err := encodeSARIF(findings)
+	if err != nil {
+		fmt.Printf("{\"error\":%q}\n", err.Error())
+		return
+	}
+	fmt.Println(string(out))
+}
+
+func encodeSARIF(findings []static.Finding) ([]byte, error) {
 	type artifactLocation struct {
 		URI string `json:"uri"`
 	}
@@ -20,7 +29,7 @@ func RenderSARIF(findings []static.Finding, target string) {
 
 	type physicalLocation struct {
 		ArtifactLocation artifactLocation `json:"artifactLocation"`
-		Region            region           `json:"region"`
+		Region           region           `json:"region"`
 	}
 
 	type location struct {
@@ -44,8 +53,8 @@ func RenderSARIF(findings []static.Finding, target string) {
 	}
 
 	type toolComponent struct {
-		Name  string                 `json:"name"`
-		Rules []reportingDescriptor  `json:"rules"`
+		Name  string                `json:"name"`
+		Rules []reportingDescriptor `json:"rules"`
 	}
 
 	sarif := struct {
@@ -63,11 +72,12 @@ func RenderSARIF(findings []static.Finding, target string) {
 	}
 
 	driver := toolComponent{
-		Name: "Sift",
+		Name:  "Sift",
+		Rules: []reportingDescriptor{},
 	}
 
 	ruleSet := make(map[string]bool)
-	var results []result
+	results := []result{}
 
 	for _, f := range findings {
 		if !ruleSet[f.Rule] {
@@ -101,12 +111,13 @@ func RenderSARIF(findings []static.Finding, target string) {
 		} `json:"tool"`
 		Results []result `json:"results"`
 	}{
-		Tool:    struct{ Driver toolComponent `json:"driver"` }{Driver: driver},
+		Tool: struct {
+			Driver toolComponent `json:"driver"`
+		}{Driver: driver},
 		Results: results,
 	})
 
-	out, _ := json.MarshalIndent(sarif, "", "  ")
-	fmt.Println(string(out))
+	return json.MarshalIndent(sarif, "", "  ")
 }
 
 func mapSARIFLevel(sev static.Severity) string {

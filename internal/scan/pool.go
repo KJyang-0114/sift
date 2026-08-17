@@ -34,16 +34,16 @@ func NewWorkerPool(maxWorkers int, timeout time.Duration) *WorkerPool {
 
 // Job represents an analysis task.
 type Job struct {
-	Name     string
-	Analyze  func() ([]static.Finding, error)
+	Name    string
+	Analyze func() ([]static.Finding, error)
 }
 
 // BatchResult represents the result of a batch execution.
 type BatchResult struct {
-	Name     string        `json:"name"`
+	Name     string           `json:"name"`
 	Findings []static.Finding `json:"findings"`
-	Duration time.Duration   `json:"duration"`
-	Error    error           `json:"error,omitempty"`
+	Duration time.Duration    `json:"duration"`
+	Error    error            `json:"error,omitempty"`
 }
 
 // Run executes multiple analysis jobs in parallel, limiting concurrency.

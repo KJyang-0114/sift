@@ -17,19 +17,19 @@ import (
 // Enterprise feature: only scans files changed since last run, dramatically reducing repeat scan time.
 type FileCache struct {
 	mu          sync.RWMutex
-	entries     map[string]*CacheEntry `json:"entries"`
+	entries     map[string]*CacheEntry
 	path        string
 	projectRoot string
 }
 
 // CacheEntry records the cached state of a single file.
 type CacheEntry struct {
-	Path      string    `json:"path"`
-	SHA256    string    `json:"sha256"`
-	Size      int64     `json:"size"`
-	ModTime   time.Time `json:"mod_time"`
-	LastScan  time.Time `json:"last_scan"`
-	Findings  int       `json:"findings"`
+	Path     string    `json:"path"`
+	SHA256   string    `json:"sha256"`
+	Size     int64     `json:"size"`
+	ModTime  time.Time `json:"mod_time"`
+	LastScan time.Time `json:"last_scan"`
+	Findings int       `json:"findings"`
 }
 
 // NewFileCache creates or loads the cache.
@@ -129,8 +129,8 @@ func (fc *FileCache) FilterChanged(files []string) ([]string, error) {
 
 // Save writes the cache to disk.
 func (fc *FileCache) Save() error {
-	fc.mu.RLock()
-	defer fc.mu.RUnlock()
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
 
 	// Clean up non-existent files
 	for path := range fc.entries {
@@ -158,8 +158,8 @@ func (fc *FileCache) Stats() map[string]int {
 	}
 
 	return map[string]int{
-		"cached_files":    len(fc.entries),
-		"total_findings":  totalFindings,
+		"cached_files":   len(fc.entries),
+		"total_findings": totalFindings,
 	}
 }
 

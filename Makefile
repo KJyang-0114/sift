@@ -1,4 +1,4 @@
-.PHONY: build install test lint clean release
+.PHONY: build install fmt-check test test-race lint ci clean release
 
 BINARY := sift
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -13,10 +13,18 @@ install: build
 	sudo mv $(BINARY) /usr/local/bin/
 
 test:
-	go test ./... -v -race -count=1
+	go test ./... -count=1
+
+test-race:
+	go test -race ./... -count=1
+
+fmt-check:
+	@test -z "$$(gofmt -l $$(find . -name '*.go' -not -path './vendor/*'))"
 
 lint:
 	go vet ./...
+
+ci: fmt-check lint test build
 
 clean:
 	rm -f $(BINARY)

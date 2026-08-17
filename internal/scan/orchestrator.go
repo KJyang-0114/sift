@@ -26,8 +26,8 @@ type Orchestrator struct {
 	lastFindings     []static.Finding
 	fileCache        *cache.FileCache
 	dbStore          *store.Store
-	pool     *WorkerPool
-	diffRef  string // non-empty when diff mode is active
+	pool             *WorkerPool
+	diffRef          string // non-empty when diff mode is active
 }
 
 // SetDiffMode enables diff mode with the given git ref, scanning only git-changed files.

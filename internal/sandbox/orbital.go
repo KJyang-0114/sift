@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -58,20 +57,6 @@ func (o *Orbital) Run(code, lang string) (*Result, error) {
 		return nil, fmt.Errorf("unsupported language: %s", lang)
 	}
 
-	// Set process group (so subprocesses can be killed)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
-	}
-	cmd.Dir = workDir
-
-	// Set isolated environment variables
-	cmd.Env = []string{
-		"PATH=" + os.Getenv("PATH"),
-		"HOME=" + workDir,
-		"TMPDIR=" + workDir,
-		"LANG=en_US.UTF-8",
-	}
-
 	start := time.Now()
 
 	// Limit execution time with context timeout
@@ -79,7 +64,7 @@ func (o *Orbital) Run(code, lang string) (*Result, error) {
 	defer cancel()
 
 	cmd = exec.CommandContext(ctx, cmd.Path, cmd.Args[1:]...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	configureProcessGroup(cmd)
 	cmd.Dir = workDir
 	cmd.Env = []string{
 		"PATH=" + os.Getenv("PATH"),
@@ -181,18 +166,6 @@ func Available(lang string) bool {
 func commandExists(name string) bool {
 	_, err := exec.LookPath(name)
 	return err == nil
-}
-
-func killProcess(cmd *exec.Cmd) {
-	if cmd.Process != nil {
-		// Use negative PID to kill the entire process group
-		pgid, err := syscall.Getpgid(cmd.Process.Pid)
-		if err == nil {
-			syscall.Kill(-pgid, syscall.SIGKILL)
-		} else {
-			cmd.Process.Kill()
-		}
-	}
 }
 
 // limitedBuffer is a buffer that limits the maximum output length.

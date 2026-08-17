@@ -216,7 +216,7 @@ func (s *Store) RecentScans(limit int) ([]map[string]interface{}, error) {
 		results = append(results, map[string]interface{}{
 			"id": id, "target": target, "started_at": startedAt,
 			"duration_s": float64(durationMs) / 1000,
-			"findings": totalFindings, "files": filesScanned,
+			"findings":   totalFindings, "files": filesScanned,
 		})
 	}
 
