@@ -49,6 +49,7 @@ func TestNewScanRequestRejectsUnsafeInputs(t *testing.T) {
 		{name: "empty target", root: root, targets: []string{""}},
 		{name: "absolute unix target", root: root, targets: []string{"/tmp/outside.go"}},
 		{name: "absolute windows target", root: root, targets: []string{`C:\\outside.go`}},
+		{name: "windows drive-relative target", root: root, targets: []string{`C:outside.go`}},
 		{name: "escaping target", root: root, targets: []string{"../outside.go"}},
 	}
 

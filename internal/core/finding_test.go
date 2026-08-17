@@ -88,9 +88,15 @@ func TestNewFindingRejectsInvalidInput(t *testing.T) {
 		{name: "invalid confidence", mutate: func(in *FindingInput) { in.Confidence = "certain" }},
 		{name: "absolute unix path", mutate: func(in *FindingInput) { in.Location.Path = "/home/user/project/main.go" }},
 		{name: "absolute windows path", mutate: func(in *FindingInput) { in.Location.Path = `C:\\Users\\User\\project\\main.go` }},
+		{name: "windows drive-relative path", mutate: func(in *FindingInput) { in.Location.Path = `C:outside.go` }},
 		{name: "escaping path", mutate: func(in *FindingInput) { in.Location.Path = "../outside.go" }},
 		{name: "missing path", mutate: func(in *FindingInput) { in.Location.Path = "" }},
 		{name: "negative line", mutate: func(in *FindingInput) { in.Location.Line = -1 }},
+		{name: "end line before start", mutate: func(in *FindingInput) { in.Location.EndLine = in.Location.Line - 1 }},
+		{name: "end column before start", mutate: func(in *FindingInput) {
+			in.Location.EndLine = in.Location.Line
+			in.Location.EndColumn = in.Location.Column - 1
+		}},
 		{name: "oversized evidence", mutate: func(in *FindingInput) { in.Evidence[0].Snippet = longEvidence }},
 	}
 

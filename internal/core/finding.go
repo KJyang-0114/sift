@@ -202,10 +202,16 @@ func normalizeLocation(location Location) (Location, error) {
 	if location.Line < 0 || location.Column < 0 || location.EndLine < 0 || location.EndColumn < 0 {
 		return Location{}, fmt.Errorf("line and column values cannot be negative")
 	}
+	if location.EndLine > 0 && location.Line > 0 && location.EndLine < location.Line {
+		return Location{}, fmt.Errorf("end line cannot precede start line")
+	}
+	if location.EndLine == location.Line && location.EndColumn > 0 && location.Column > 0 && location.EndColumn < location.Column {
+		return Location{}, fmt.Errorf("end column cannot precede start column")
+	}
 	location.Path = normalized
 	return location, nil
 }
 
 func hasWindowsVolume(path string) bool {
-	return len(path) >= 3 && ((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z')) && path[1] == ':' && path[2] == '/'
+	return len(path) >= 2 && ((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z')) && path[1] == ':'
 }
