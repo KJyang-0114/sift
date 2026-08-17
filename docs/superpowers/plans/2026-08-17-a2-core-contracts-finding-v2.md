@@ -74,11 +74,11 @@ This is an intentionally breaking internal and JSON schema change. The CLI comma
 - Add `internal/core/analyzer_test.go`
 - Modify `internal/static/analyzer.go`
 
-- [ ] Write failing tests proving constructor validation and defensive copies for target slices.
-- [ ] Add typed diagnostic kinds/severities, `AnalysisResult`, and the context-aware `Analyzer` interface.
+- [x] Write failing tests proving constructor validation and defensive copies for target slices.
+- [x] Add typed diagnostic kinds/severities, `AnalysisResult`, and the context-aware `Analyzer` interface.
 - [ ] Preserve severity helper behavior in `internal/core`; remove the v1 model from `internal/static`.
 - [ ] Add compile-time interface assertions to analyzer implementations as they migrate.
-- [ ] Run focused tests and commit as `feat: add analyzer v2 contracts`.
+- [x] Run focused tests and commit as `feat: add analyzer v2 contracts`.
 
 ## Task 3: Migrate deterministic and network analyzers
 
