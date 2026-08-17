@@ -159,11 +159,13 @@ This is an intentionally breaking internal and JSON schema change. The CLI comma
 - [x] Verify a clean tree and run `gofmt -l .`, `go mod verify`, `go vet ./...`, `go test ./... -count=1`, and `git diff --check origin/main...HEAD`.
 - [x] Cross-build `windows/amd64`, `linux/amd64`, and `darwin/amd64` with `CGO_ENABLED=0`.
 - [x] Review that no API key, source-upload, execution opt-in, target resolver, or accuracy-policy work leaked into the branch.
-- [ ] Push the branch and open a Draft PR with scope, out-of-scope, tests, security, compatibility, and rollback sections.
-- [ ] Wait for CI and the repository security scan; fix failures before marking Ready for review.
-- [ ] Do not merge without explicit maintainer authorization.
+- [x] Push the branch and open a Draft PR with scope, out-of-scope, tests, security, compatibility, and rollback sections.
+- [x] Wait for CI and the repository security scan; fix failures before marking Ready for review.
+- [x] Do not merge without explicit maintainer authorization.
 
 Observed before publication: the working tree was clean; formatting, module verification, vet, all tests, diff checks, and CGO-disabled Windows/Linux/macOS amd64 builds passed at commit `de9db8c` and were repeated after the final report-target privacy correction. Local Windows race testing remains unavailable because no GCC toolchain is installed; the Ubuntu CI job is the required race gate. Scope review found no configuration schema, API-key, source-upload consent, execution policy/backend, symlink-aware resolver, suppression-policy, or accuracy-gating changes.
+
+Observed after publication: branch `codex/a2-core-contracts-finding-v2` was pushed and [PR #2](https://github.com/KJyang-0114/sift/pull/2) was opened as a draft. GitHub CI passed formatting, vet, unit tests, the Ubuntu race detector, and native Linux/macOS/Windows builds. The existing Sift Security Scan also completed successfully. The PR remained unmerged and was handed off for maintainer review.
 
 ## Rollback
 
