@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/KJyang-0114/sift/internal/static"
+	"github.com/KJyang-0114/sift/internal/core"
 )
 
 // RenderLLM outputs the report in an LLM-consumable format.
 // This format is designed for pasting into LLMs (Claude, GPT, etc.) so they can generate fix code directly.
-func RenderLLM(findings []static.Finding, target string) {
+func RenderLLM(findings []core.Finding, target string) {
 	fmt.Println("# Code Issues Report")
 	fmt.Println()
 	fmt.Printf("The following security and logic issues were found in `%s`.\n", target)
@@ -21,8 +21,8 @@ func RenderLLM(findings []static.Finding, target string) {
 		return
 	}
 
-	groups := static.GroupBySeverity(findings)
-	order := []static.Severity{static.SeverityCritical, static.SeverityHigh, static.SeverityMedium, static.SeverityLow, static.SeverityInfo}
+	groups := core.GroupBySeverity(findings)
+	order := []core.Severity{core.SeverityCritical, core.SeverityHigh, core.SeverityMedium, core.SeverityLow, core.SeverityInfo}
 
 	idx := 0
 	for _, sev := range order {
@@ -30,8 +30,9 @@ func RenderLLM(findings []static.Finding, target string) {
 			idx++
 			fmt.Printf("## Issue %d [%s] %s\n", idx, strings.ToUpper(string(f.Severity)), f.Rule)
 			fmt.Println()
-			fmt.Printf("- **File**: `%s`\n", f.File)
-			fmt.Printf("- **Line**: %d\n", f.Line)
+			fmt.Printf("- **File**: `%s`\n", f.Location.Path)
+			fmt.Printf("- **Line**: %d\n", f.Location.Line)
+			fmt.Printf("- **Confidence**: %s\n", f.Confidence)
 			if f.CWE != "" {
 				fmt.Printf("- **CWE**: %s\n", f.CWE)
 			}
@@ -39,13 +40,17 @@ func RenderLLM(findings []static.Finding, target string) {
 				fmt.Printf("- **OWASP**: %s\n", f.OWASP)
 			}
 			fmt.Printf("- **Problem**: %s\n", f.Message)
-			if f.Code != "" {
+			code := ""
+			if len(f.Evidence) > 0 {
+				code = f.Evidence[0].Snippet
+			}
+			if code != "" {
 				fmt.Println("- **Code**:")
-				fmt.Printf("  ```%s\n", detectLanguage(f.File))
-				fmt.Printf("  %s\n", f.Code)
+				fmt.Printf("  ```%s\n", detectLanguage(f.Location.Path))
+				fmt.Printf("  %s\n", code)
 				fmt.Println("  ```")
 			}
-			fmt.Printf("- **Required Fix**: Fix the %s vulnerability described above.\n", f.Rule)
+			fmt.Printf("- **Required Fix**: %s\n", f.Remediation)
 			fmt.Println()
 		}
 	}

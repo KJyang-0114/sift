@@ -162,17 +162,16 @@ func (o *Orchestrator) RunContext(ctx context.Context, target string, format str
 	// Output report
 	o.lastFindings = allFindings
 	o.lastDiagnostics = allDiagnostics
-	legacyFindings := toLegacyFindings(allFindings)
 
 	// Enterprise: persist to SQLite + cache
 	if o.dbStore != nil {
-		o.dbStore.SaveScan(root, time.Since(start), legacyFindings, 0)
+		o.dbStore.SaveScan(root, time.Since(start), allFindings, 0)
 	}
 	if o.fileCache != nil {
 		o.fileCache.Save()
 	}
 
-	o.reporters.Render(legacyFindings, root, time.Since(start), format)
+	o.reporters.Render(allFindings, allDiagnostics, root, time.Since(start), format)
 
 	return nil
 }
@@ -288,22 +287,4 @@ func scanRootAndTargets(target string) (string, []string) {
 		return filepath.Dir(absolute), []string{filepath.Base(absolute)}
 	}
 	return absolute, []string{"."}
-}
-
-// toLegacyFindings is removed in Task 6 when reporters and persistence consume v2 directly.
-func toLegacyFindings(findings []core.Finding) []static.Finding {
-	legacy := make([]static.Finding, 0, len(findings))
-	for _, finding := range findings {
-		code := ""
-		if len(finding.Evidence) > 0 {
-			code = finding.Evidence[0].Snippet
-		}
-		legacy = append(legacy, static.Finding{
-			ID: finding.ID, Rule: finding.Rule, Message: finding.Message,
-			Severity: static.Severity(finding.Severity), Category: finding.Category,
-			File: finding.Location.Path, Line: finding.Location.Line, Column: finding.Location.Column,
-			Code: code, CWE: finding.CWE, OWASP: finding.OWASP,
-		})
-	}
-	return legacy
 }

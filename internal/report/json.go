@@ -3,19 +3,22 @@ package report
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"time"
 
-	"github.com/KJyang-0114/sift/internal/static"
+	"github.com/KJyang-0114/sift/internal/core"
 )
 
 type jsonReport struct {
-	Tool      string           `json:"tool"`
-	Version   string           `json:"version"`
-	Target    string           `json:"target"`
-	Timestamp string           `json:"timestamp"`
-	Duration  string           `json:"duration"`
-	Summary   jsonSummary      `json:"summary"`
-	Findings  []static.Finding `json:"findings"`
+	SchemaVersion string            `json:"schema_version"`
+	Tool          string            `json:"tool"`
+	Version       string            `json:"version"`
+	Target        string            `json:"target"`
+	Timestamp     string            `json:"timestamp"`
+	Duration      string            `json:"duration"`
+	Summary       jsonSummary       `json:"summary"`
+	Findings      []core.Finding    `json:"findings"`
+	Diagnostics   []core.Diagnostic `json:"diagnostics"`
 }
 
 type jsonSummary struct {
@@ -28,8 +31,8 @@ type jsonSummary struct {
 }
 
 // RenderJSON outputs the scan report in JSON format.
-func RenderJSON(findings []static.Finding, target string, duration time.Duration) {
-	out, err := encodeJSON(findings, target, duration, time.Now())
+func RenderJSON(findings []core.Finding, diagnostics []core.Diagnostic, target string, duration time.Duration) {
+	out, err := encodeJSON(findings, diagnostics, target, duration, time.Now())
 	if err != nil {
 		fmt.Printf("{\"error\":%q}\n", err.Error())
 		return
@@ -37,28 +40,42 @@ func RenderJSON(findings []static.Finding, target string, duration time.Duration
 	fmt.Println(string(out))
 }
 
-func encodeJSON(findings []static.Finding, target string, duration time.Duration, now time.Time) ([]byte, error) {
-	groups := static.GroupBySeverity(findings)
+func encodeJSON(findings []core.Finding, diagnostics []core.Diagnostic, target string, duration time.Duration, now time.Time) ([]byte, error) {
+	groups := core.GroupBySeverity(findings)
 
 	report := jsonReport{
-		Tool:      "sift",
-		Target:    target,
-		Timestamp: now.Format(time.RFC3339),
-		Duration:  fmt.Sprintf("%.2fs", duration.Seconds()),
+		SchemaVersion: core.FindingSchemaVersion,
+		Tool:          "sift",
+		Version:       "0.2",
+		Target:        safeDisplayTarget(target),
+		Timestamp:     now.Format(time.RFC3339),
+		Duration:      fmt.Sprintf("%.2fs", duration.Seconds()),
 		Summary: jsonSummary{
 			Total:    len(findings),
-			Critical: len(groups[static.SeverityCritical]),
-			High:     len(groups[static.SeverityHigh]),
-			Medium:   len(groups[static.SeverityMedium]),
-			Low:      len(groups[static.SeverityLow]),
-			Info:     len(groups[static.SeverityInfo]),
+			Critical: len(groups[core.SeverityCritical]),
+			High:     len(groups[core.SeverityHigh]),
+			Medium:   len(groups[core.SeverityMedium]),
+			Low:      len(groups[core.SeverityLow]),
+			Info:     len(groups[core.SeverityInfo]),
 		},
-		Findings: findings,
+		Findings:    findings,
+		Diagnostics: diagnostics,
 	}
 
 	if report.Findings == nil {
-		report.Findings = []static.Finding{}
+		report.Findings = []core.Finding{}
+	}
+	if report.Diagnostics == nil {
+		report.Diagnostics = []core.Diagnostic{}
 	}
 
 	return json.MarshalIndent(report, "", "  ")
+}
+
+func safeDisplayTarget(target string) string {
+	clean := filepath.Clean(target)
+	if filepath.IsAbs(clean) {
+		return filepath.Base(clean)
+	}
+	return filepath.ToSlash(clean)
 }

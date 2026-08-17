@@ -76,7 +76,7 @@ This is an intentionally breaking internal and JSON schema change. The CLI comma
 
 - [x] Write failing tests proving constructor validation and defensive copies for target slices.
 - [x] Add typed diagnostic kinds/severities, `AnalysisResult`, and the context-aware `Analyzer` interface.
-- [ ] Preserve severity helper behavior in `internal/core`; remove the v1 model from `internal/static`.
+- [x] Preserve severity helper behavior in `internal/core`; remove the v1 model from `internal/static`.
 - [x] Add compile-time interface assertions to analyzer implementations as they migrate.
 - [x] Run focused tests and commit as `feat: add analyzer v2 contracts`.
 
@@ -134,11 +134,11 @@ This is an intentionally breaking internal and JSON schema change. The CLI comma
 - Modify `internal/store/sqlite.go`
 - Add `internal/store/sqlite_test.go`
 
-- [ ] Add failing JSON contract tests for schema version, empty arrays, safe paths, evidence, confidence, and suppression state.
-- [ ] Add failing SARIF tests for fingerprints, locations, help/remediation, confidence properties, and empty arrays.
-- [ ] Migrate terminal and LLM renderers without panics on empty IDs or locations.
-- [ ] Add additive SQLite migration tests using a v1 fixture schema; preserve old rows and round-trip v2 rows.
-- [ ] Run report/store tests and commit as `feat: publish Finding v2 reports and history`.
+- [x] Add failing JSON contract tests for schema version, empty arrays, safe paths, evidence, confidence, and suppression state.
+- [x] Add failing SARIF tests for fingerprints, locations, help/remediation, confidence properties, and empty arrays.
+- [x] Migrate terminal and LLM renderers without panics on empty IDs or locations.
+- [x] Add additive SQLite migration tests using a v1 fixture schema; preserve old rows and round-trip v2 rows.
+- [x] Run report/store tests and commit as `feat: publish Finding v2 reports and history`.
 
 ## Task 7: Migrate remaining consumers and document breaking changes
 
@@ -149,7 +149,7 @@ This is an intentionally breaking internal and JSON schema change. The CLI comma
 - Modify command/report consumers found by compiler/search
 - Add `MIGRATION.md`
 
-- [ ] Use compiler failures and `rg 'static\.Finding|\.File|\.Line|\.Code'` to migrate every remaining v1 consumer.
+- [x] Use compiler failures and `rg 'static\.Finding|\.File|\.Line|\.Code'` to migrate every remaining v1 consumer.
 - [ ] Document JSON field mappings, analyzer interface changes, fingerprint behavior, persistence migration, and rollback.
 - [ ] Run formatting, vet, all tests, race tests where supported, and three-platform builds.
 - [ ] Commit as `docs: document Finding v2 migration`.

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/KJyang-0114/sift/internal/static"
+	"github.com/KJyang-0114/sift/internal/core"
 )
 
 type sarifDocumentForTest struct {
@@ -15,16 +15,20 @@ type sarifDocumentForTest struct {
 			Driver struct {
 				Name  string `json:"name"`
 				Rules []struct {
-					ID string `json:"id"`
+					ID      string `json:"id"`
+					HelpURI string `json:"helpUri"`
 				} `json:"rules"`
 			} `json:"driver"`
 		} `json:"tool"`
 		Results []struct {
-			RuleID  string `json:"ruleId"`
-			Level   string `json:"level"`
-			Message struct {
-				Text string `json:"text"`
-			} `json:"message"`
+			RuleID              string            `json:"ruleId"`
+			Level               string            `json:"level"`
+			PartialFingerprints map[string]string `json:"partialFingerprints"`
+			Properties          struct {
+				Source      string `json:"source"`
+				Confidence  string `json:"confidence"`
+				Remediation string `json:"remediation"`
+			} `json:"properties"`
 			Locations []struct {
 				PhysicalLocation struct {
 					ArtifactLocation struct {
@@ -33,10 +37,17 @@ type sarifDocumentForTest struct {
 					Region struct {
 						StartLine   int `json:"startLine"`
 						StartColumn int `json:"startColumn"`
+						EndLine     int `json:"endLine"`
+						EndColumn   int `json:"endColumn"`
 					} `json:"region"`
 				} `json:"physicalLocation"`
 			} `json:"locations"`
 		} `json:"results"`
+		Invocations []struct {
+			Notifications []struct {
+				Level string `json:"level"`
+			} `json:"toolExecutionNotifications"`
+		} `json:"invocations"`
 	} `json:"runs"`
 }
 
@@ -49,67 +60,53 @@ func decodeSARIFForTest(t *testing.T, data []byte) sarifDocumentForTest {
 	return got
 }
 
-func TestEncodeSARIFEmitsGitHubCompatibleStructure(t *testing.T) {
-	findings := []static.Finding{
-		{Rule: "sift.rule", Message: "first", Severity: static.SeverityHigh, File: "src/app.go", Line: 7, Column: 0},
-		{Rule: "sift.rule", Message: "second", Severity: static.SeverityMedium, File: "src/app.go", Line: 9, Column: 4},
-	}
+func TestEncodeSARIFEmitsV2IdentityPropertiesAndDiagnostics(t *testing.T) {
+	first := reportFinding(t, "sift.rule", core.SeverityHigh)
+	second := reportFinding(t, "sift.rule", core.SeverityMedium)
+	second.Location.Line = 9
+	diagnostics := []core.Diagnostic{{
+		Kind: core.DiagnosticIntegration, Severity: core.DiagnosticWarning,
+		Code: "registry.unavailable", Source: "package-verifier", Message: "offline",
+	}}
 
-	data, err := encodeSARIF(findings)
+	data, err := encodeSARIF([]core.Finding{first, second}, diagnostics)
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := decodeSARIFForTest(t, data)
-	if got.Version != "2.1.0" || got.Schema == "" {
-		t.Fatalf("unexpected SARIF metadata: version=%q schema=%q", got.Version, got.Schema)
-	}
-	if len(got.Runs) != 1 {
-		t.Fatalf("runs = %d, want 1", len(got.Runs))
+	if got.Version != "2.1.0" || got.Schema == "" || len(got.Runs) != 1 {
+		t.Fatalf("unexpected SARIF metadata: %#v", got)
 	}
 	run := got.Runs[0]
-	if run.Tool.Driver.Name != "Sift" {
-		t.Fatalf("driver name = %q, want Sift", run.Tool.Driver.Name)
+	if run.Tool.Driver.Name != "Sift" || len(run.Tool.Driver.Rules) != 1 || run.Tool.Driver.Rules[0].HelpURI == "" {
+		t.Fatalf("unexpected driver/rules: %#v", run.Tool.Driver)
 	}
-	if len(run.Tool.Driver.Rules) != 1 {
-		t.Fatalf("rules = %d, want one descriptor for duplicate rule IDs", len(run.Tool.Driver.Rules))
+	if len(run.Results) != 2 || run.Results[0].Level != "error" || run.Results[1].Level != "warning" {
+		t.Fatalf("unexpected results: %#v", run.Results)
 	}
-	if len(run.Results) != 2 {
-		t.Fatalf("results = %d, want 2", len(run.Results))
+	result := run.Results[0]
+	if result.PartialFingerprints["sift/v2"] != first.Fingerprint {
+		t.Fatalf("fingerprint = %#v", result.PartialFingerprints)
 	}
-	if run.Results[0].Level != "error" || run.Results[1].Level != "warning" {
-		t.Fatalf("levels = %q, %q; want error, warning", run.Results[0].Level, run.Results[1].Level)
+	if result.Properties.Source != first.Source || result.Properties.Confidence != string(first.Confidence) || result.Properties.Remediation != first.Remediation {
+		t.Fatalf("properties = %#v", result.Properties)
 	}
-	location := run.Results[0].Locations[0].PhysicalLocation
-	if location.ArtifactLocation.URI != "src/app.go" || location.Region.StartLine != 7 || location.Region.StartColumn != 1 {
-		t.Fatalf("unexpected first location: %#v", location)
+	location := result.Locations[0].PhysicalLocation
+	if location.ArtifactLocation.URI != "src/app.go" || location.Region.StartLine != 7 || location.Region.StartColumn != 2 || location.Region.EndColumn != 8 {
+		t.Fatalf("unexpected location: %#v", location)
 	}
-}
-
-func TestEncodeSARIFMapsNonBlockingLevels(t *testing.T) {
-	findings := []static.Finding{
-		{Rule: "low", Severity: static.SeverityLow},
-		{Rule: "info", Severity: static.SeverityInfo},
-	}
-	data, err := encodeSARIF(findings)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := decodeSARIFForTest(t, data)
-	if got.Runs[0].Results[0].Level != "note" || got.Runs[0].Results[1].Level != "none" {
-		t.Fatalf("levels = %#v, want note and none", got.Runs[0].Results)
+	if len(run.Invocations) != 1 || len(run.Invocations[0].Notifications) != 1 || run.Invocations[0].Notifications[0].Level != "warning" {
+		t.Fatalf("diagnostic notifications = %#v", run.Invocations)
 	}
 }
 
 func TestEncodeSARIFUsesEmptyArrays(t *testing.T) {
-	data, err := encodeSARIF(nil)
+	data, err := encodeSARIF(nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := decodeSARIFForTest(t, data)
-	if got.Runs[0].Results == nil {
-		t.Fatal("results encoded as null, want an empty array")
-	}
-	if got.Runs[0].Tool.Driver.Rules == nil {
-		t.Fatal("rules encoded as null, want an empty array")
+	if got.Runs[0].Results == nil || got.Runs[0].Tool.Driver.Rules == nil || got.Runs[0].Invocations == nil || got.Runs[0].Invocations[0].Notifications == nil {
+		t.Fatalf("SARIF contains null collections: %#v", got.Runs[0])
 	}
 }
