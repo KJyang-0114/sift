@@ -47,7 +47,7 @@ func RenderTerminal(findings []core.Finding, target string, duration time.Durati
 
 	printBar(width)
 	printLine(width, fmt.Sprintf("🔍 Sift Scan Report — %s", time.Now().Format("2006-01-02 15:04:05")))
-	printLine(width, fmt.Sprintf("Project: %s — Scan duration: %.1fs", target, duration.Seconds()))
+	printLine(width, fmt.Sprintf("Project: %s — Scan duration: %.1fs", safeDisplayTarget(target), duration.Seconds()))
 	printBar(width)
 
 	if len(findings) == 0 {

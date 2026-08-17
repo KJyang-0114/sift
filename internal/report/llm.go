@@ -12,7 +12,7 @@ import (
 func RenderLLM(findings []core.Finding, target string) {
 	fmt.Println("# Code Issues Report")
 	fmt.Println()
-	fmt.Printf("The following security and logic issues were found in `%s`.\n", target)
+	fmt.Printf("The following security and logic issues were found in `%s`.\n", safeDisplayTarget(target))
 	fmt.Println("For each issue, provide a specific code fix.")
 	fmt.Println()
 
