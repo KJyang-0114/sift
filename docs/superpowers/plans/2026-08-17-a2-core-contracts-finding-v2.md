@@ -77,7 +77,7 @@ This is an intentionally breaking internal and JSON schema change. The CLI comma
 - [x] Write failing tests proving constructor validation and defensive copies for target slices.
 - [x] Add typed diagnostic kinds/severities, `AnalysisResult`, and the context-aware `Analyzer` interface.
 - [ ] Preserve severity helper behavior in `internal/core`; remove the v1 model from `internal/static`.
-- [ ] Add compile-time interface assertions to analyzer implementations as they migrate.
+- [x] Add compile-time interface assertions to analyzer implementations as they migrate.
 - [x] Run focused tests and commit as `feat: add analyzer v2 contracts`.
 
 ## Task 3: Migrate deterministic and network analyzers
@@ -89,11 +89,11 @@ This is an intentionally breaking internal and JSON schema change. The CLI comma
 - Modify `internal/agent/package_verify.go`
 - Add dependency verifier contract tests
 
-- [ ] Add failing parser tests for v2 identity, repository-relative locations, code evidence, confidence, remediation, and safe path rejection.
-- [ ] Migrate Semgrep to `Analyze(context.Context, core.ScanRequest)` and use request cancellation.
-- [ ] Add failing dependency tests proving unavailable registries create diagnostics, never malicious-package findings.
-- [ ] Migrate package verification and emit dependency evidence with typed diagnostics.
-- [ ] Run focused tests and commit as `refactor: migrate deterministic analyzers to v2`.
+- [x] Add failing parser tests for v2 identity, repository-relative locations, code evidence, confidence, remediation, and safe path rejection.
+- [x] Migrate Semgrep to `Analyze(context.Context, core.ScanRequest)` and use request cancellation.
+- [x] Add failing dependency tests proving unavailable registries create diagnostics, never malicious-package findings.
+- [x] Migrate package verification and emit dependency evidence with typed diagnostics.
+- [x] Run focused tests; commit atomically with Tasks 4–5 as `refactor: migrate analyzers and scheduling to v2`.
 
 ## Task 4: Migrate optional LLM and generated-test analyzers
 
@@ -104,11 +104,11 @@ This is an intentionally breaking internal and JSON schema change. The CLI comma
 - Modify `internal/scan/batch.go`
 - Add focused parser/contract tests
 
-- [ ] Add failing tests that LLM-only findings default to low confidence and carry explicit provenance/evidence.
-- [ ] Pass caller context through LLM calls instead of creating background contexts.
-- [ ] Convert per-file failures and execution failures to typed diagnostics where they are environmental rather than security findings.
-- [ ] Migrate batch parsing to the v2 model and standard JSON decoding where practical.
-- [ ] Run focused tests and commit as `refactor: migrate optional analyzers to v2`.
+- [x] Add failing tests that LLM-only findings default to low confidence and carry explicit provenance/evidence.
+- [x] Pass caller context through LLM calls instead of creating background contexts.
+- [x] Convert per-file failures and execution failures to typed diagnostics where they are environmental rather than security findings.
+- [x] Migrate batch parsing to the v2 model and standard JSON decoding where practical.
+- [x] Run focused tests; commit atomically with Tasks 3 and 5.
 
 ## Task 5: Migrate orchestration and worker contracts
 
@@ -119,11 +119,11 @@ This is an intentionally breaking internal and JSON schema change. The CLI comma
 - Modify `internal/scan/pool_test.go`
 - Add orchestrator contract tests
 
-- [ ] Add failing tests for context cancellation, diagnostic preservation, result ordering, and immutable request propagation.
-- [ ] Make analyzer scheduling context-aware and return findings plus diagnostics without discarding successful partial results.
-- [ ] Stop transporting multiple targets as comma-separated strings; use request target slices.
-- [ ] Keep exit-code policy changes out of this PR while preserving non-zero fatal errors.
-- [ ] Run `go test ./internal/scan -count=1` and commit as `refactor: run analyzers through v2 contracts`.
+- [x] Add failing tests for context cancellation, diagnostic preservation, result ordering, and immutable request propagation.
+- [x] Make analyzer scheduling context-aware and return findings plus diagnostics without discarding successful partial results.
+- [x] Stop transporting multiple targets as comma-separated strings; use request target slices.
+- [x] Keep exit-code policy changes out of this PR while preserving non-zero fatal errors.
+- [x] Run `go test ./internal/scan -count=1` and commit atomically with Tasks 3–4 as `refactor: migrate analyzers and scheduling to v2`.
 
 ## Task 6: Upgrade reports and persistence
 

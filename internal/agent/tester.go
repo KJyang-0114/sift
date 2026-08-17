@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/KJyang-0114/sift/internal/config"
+	"github.com/KJyang-0114/sift/internal/core"
 	"github.com/KJyang-0114/sift/internal/llm"
 	"github.com/KJyang-0114/sift/internal/sandbox"
 	"github.com/KJyang-0114/sift/internal/securepath"
-	"github.com/KJyang-0114/sift/internal/static"
 )
 
 // TestGenerator automatically generates test cases and runs them in a sandbox.
@@ -21,6 +21,8 @@ type TestGenerator struct {
 	sandbox *sandbox.Orbital
 	cfg     *config.Config
 }
+
+var _ core.Analyzer = (*TestGenerator)(nil)
 
 // NewTestGenerator creates a test generator.
 func NewTestGenerator(cfg *config.Config) (*TestGenerator, error) {
@@ -44,32 +46,40 @@ func (tg *TestGenerator) Name() string {
 	return "test-generator"
 }
 
-// Analyze generates and runs tests against target code.
-func (tg *TestGenerator) Analyze(target string) ([]static.Finding, error) {
+// Analyze generates and runs tests against requested source files.
+func (tg *TestGenerator) Analyze(ctx context.Context, request core.ScanRequest) core.AnalysisResult {
+	result := core.AnalysisResult{Findings: []core.Finding{}, Diagnostics: []core.Diagnostic{}}
 	// Only process Python files (priority support during MVP phase)
-	files, err := tg.collectPythonFiles(target, 10)
+	files, err := tg.collectPythonFiles(request.AbsoluteTargets(), 10)
 	if err != nil {
-		return nil, err
+		result.Diagnostics = append(result.Diagnostics, testGeneratorDiagnostic("test-generator.collect-files", err))
+		return result
 	}
 
-	var allFindings []static.Finding
 	for _, file := range files {
-		findings, err := tg.testFile(target, file)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "  ⚠️  Test generation for %s failed: %v\n", file, err)
-			continue
-		}
-		allFindings = append(allFindings, findings...)
+		fileResult := tg.testFile(ctx, request, file)
+		result.Findings = append(result.Findings, fileResult.Findings...)
+		result.Diagnostics = append(result.Diagnostics, fileResult.Diagnostics...)
 	}
 
-	return allFindings, nil
+	return result
 }
 
 // testFile generates and runs tests for a single file.
-func (tg *TestGenerator) testFile(baseDir, path string) ([]static.Finding, error) {
-	content, err := securepath.ReadFile(baseDir, path)
+func (tg *TestGenerator) testFile(ctx context.Context, request core.ScanRequest, file string) core.AnalysisResult {
+	result := core.AnalysisResult{Findings: []core.Finding{}, Diagnostics: []core.Diagnostic{}}
+	relativePath, err := request.RelativePath(file)
 	if err != nil {
-		return nil, err
+		result.Diagnostics = append(result.Diagnostics, core.Diagnostic{
+			Kind: core.DiagnosticTarget, Severity: core.DiagnosticError,
+			Code: "test-generator.location.outside-root", Source: tg.Name(), Message: "Test target is outside the scan root", Cause: err,
+		})
+		return result
+	}
+	content, err := securepath.ReadFile(request.Root(), relativePath)
+	if err != nil {
+		result.Diagnostics = append(result.Diagnostics, testGeneratorDiagnostic("test-generator.read-file", err))
+		return result
 	}
 
 	code := string(content)
@@ -78,47 +88,78 @@ func (tg *TestGenerator) testFile(baseDir, path string) ([]static.Finding, error
 	}
 
 	// Step 1: Use LLM to generate test cases
-	testCode, err := tg.generateTests(path, code)
+	testCode, err := tg.generateTests(ctx, relativePath, code)
 	if err != nil || testCode == "" {
-		return nil, err
+		if err != nil {
+			result.Diagnostics = append(result.Diagnostics, testGeneratorDiagnostic("test-generator.request", err))
+		}
+		return result
 	}
 
 	// Step 2: Execute in sandbox
-	result, err := tg.sandbox.Run(testCode, "python")
+	execution, err := tg.sandbox.Run(testCode, "python")
 	if err != nil {
-		return nil, err
-	}
-
-	// Step 3: Analyze results
-	var findings []static.Finding
-	if result.TimedOut {
-		findings = append(findings, static.Finding{
-			ID:       "sift.test-timeout",
-			Rule:     "sift.test-timeout",
-			Message:  fmt.Sprintf("[Dynamic Test] Test execution timed out — possible infinite loop or performance issue. %s", result.Error),
-			Severity: static.SeverityHigh,
-			Category: "logic",
-			File:     path,
+		result.Diagnostics = append(result.Diagnostics, core.Diagnostic{
+			Kind: core.DiagnosticIntegration, Severity: core.DiagnosticWarning,
+			Code: "test-generator.execution", Source: tg.Name(), Message: err.Error(), Cause: err,
 		})
+		return result
 	}
 
-	if result.ExitCode != 0 {
-		findings = append(findings, static.Finding{
-			ID:       "sift.test-failure",
-			Rule:     "sift.test-failure",
-			Message:  fmt.Sprintf("[Dynamic Test] Auto-generated test case execution failed (exit: %d). %s\n  Stderr: %s", result.ExitCode, result.Error, truncate(result.Stderr, 200)),
-			Severity: static.SeverityHigh,
-			Category: "logic",
-			File:     path,
+	result.Findings, result.Diagnostics = executionFindings(request, file, execution)
+	return result
+}
+
+func testGeneratorDiagnostic(code string, err error) core.Diagnostic {
+	return core.Diagnostic{
+		Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticWarning,
+		Code: code, Source: "test-generator", Message: err.Error(), Cause: err,
+	}
+}
+
+func executionFindings(request core.ScanRequest, file string, execution *sandbox.Result) ([]core.Finding, []core.Diagnostic) {
+	findings := []core.Finding{}
+	diagnostics := []core.Diagnostic{}
+	relativePath, err := request.RelativePath(file)
+	if err != nil {
+		return findings, []core.Diagnostic{{
+			Kind: core.DiagnosticTarget, Severity: core.DiagnosticError,
+			Code: "test-generator.location.outside-root", Source: "test-generator", Message: "Execution result is outside the scan root", Cause: err,
+		}}
+	}
+	appendFinding := func(rule, message, stableKey string) {
+		snippet := truncate(strings.TrimSpace(execution.Stderr), core.MaxEvidenceSnippetBytes)
+		evidence := core.Evidence{Kind: core.EvidenceExecution, Snippet: snippet, Description: "Result from an isolated generated-test execution."}
+		finding, findingErr := core.NewFinding(core.FindingInput{
+			Source: "test-generator", Rule: rule, Message: message,
+			Severity: core.SeverityHigh, Category: "logic", Confidence: core.ConfidenceMedium,
+			Location: core.Location{Path: relativePath}, Evidence: []core.Evidence{evidence},
+			Remediation: "Reproduce the generated test failure, validate the test assumptions, and correct the confirmed logic defect.",
+			StableKey:   stableKey,
 		})
+		if findingErr != nil {
+			diagnostics = append(diagnostics, testGeneratorDiagnostic("test-generator.invalid-finding", findingErr))
+			return
+		}
+		findings = append(findings, finding)
 	}
 
-	return findings, nil
+	if execution.TimedOut {
+		appendFinding("sift.test-timeout", fmt.Sprintf("[Dynamic Test] Test execution timed out — possible infinite loop or performance issue. %s", execution.Error), "timeout")
+	}
+	if execution.ExitCode != 0 {
+		appendFinding(
+			"sift.test-failure",
+			fmt.Sprintf("[Dynamic Test] Auto-generated test case execution failed (exit: %d). %s\n  Stderr: %s", execution.ExitCode, execution.Error, truncate(execution.Stderr, 200)),
+			fmt.Sprintf("exit:%d", execution.ExitCode),
+		)
+	}
+	return findings, diagnostics
 }
 
 // collectPythonFiles collects Python files.
 // When target is a comma-separated list (diff mode), each entry is checked individually.
-func (tg *TestGenerator) collectPythonFiles(target string, maxFiles int) ([]string, error) {
+func (tg *TestGenerator) collectPythonFiles(targets []string, maxFiles int) ([]string, error) {
 	var files []string
 
 	skipDirs := map[string]bool{
@@ -127,11 +168,11 @@ func (tg *TestGenerator) collectPythonFiles(target string, maxFiles int) ([]stri
 		"build": true, ".venv": true, "venv": true, "site-packages": true,
 	}
 
-	for _, t := range splitCommaTargets(target) {
+	for _, target := range targets {
 		if len(files) >= maxFiles {
 			break
 		}
-		err := filepath.Walk(t, func(path string, info os.FileInfo, err error) error {
+		err := filepath.Walk(target, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return nil
 			}
@@ -184,11 +225,11 @@ File: %s
 Generate pytest test cases for the functions above. Output ONLY the Python test code.`
 
 // generateTests uses LLM to generate test cases for the given code.
-func (tg *TestGenerator) generateTests(path string, code string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+func (tg *TestGenerator) generateTests(ctx context.Context, path string, code string) (string, error) {
+	callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	result, err := tg.client.Chat(ctx, testGenSystemPrompt, fmt.Sprintf(testGenTemplate, path, code))
+	result, err := tg.client.Chat(callCtx, testGenSystemPrompt, fmt.Sprintf(testGenTemplate, path, code))
 	if err != nil {
 		return "", err
 	}

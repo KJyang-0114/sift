@@ -61,6 +61,27 @@ func TestNewScanRequestRejectsUnsafeInputs(t *testing.T) {
 	}
 }
 
+func TestScanRequestRelativePathRejectsEscapes(t *testing.T) {
+	root := t.TempDir()
+	request, err := NewScanRequest(root, []string{"."})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	inside := filepath.Join(root, "src", "app.go")
+	got, err := request.RelativePath(inside)
+	if err != nil {
+		t.Fatalf("RelativePath inside root: %v", err)
+	}
+	if got != "src/app.go" {
+		t.Fatalf("RelativePath = %q, want src/app.go", got)
+	}
+
+	if _, err := request.RelativePath(filepath.Join(filepath.Dir(root), "outside.go")); err == nil {
+		t.Fatal("RelativePath accepted a path outside the root")
+	}
+}
+
 func TestDiagnosticEnums(t *testing.T) {
 	for _, kind := range []DiagnosticKind{
 		DiagnosticConfiguration,

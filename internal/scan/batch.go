@@ -2,12 +2,14 @@ package scan
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/KJyang-0114/sift/internal/core"
 	"github.com/KJyang-0114/sift/internal/llm"
-	"github.com/KJyang-0114/sift/internal/static"
 )
 
 // BatchAnalyzer sends multiple files to the LLM in batches, dramatically reducing API calls.
@@ -40,15 +42,22 @@ Output format (one per line, JSON objects):
 If no issues found in a file, skip it. Focus on REAL vulnerabilities, not style issues.`
 
 // AnalyzeBatch performs batch analysis on multiple files.
-func (ba *BatchAnalyzer) AnalyzeBatch(files map[string]string) ([]static.Finding, error) {
+func (ba *BatchAnalyzer) AnalyzeBatch(ctx context.Context, request core.ScanRequest, files map[string]string) core.AnalysisResult {
+	analysis := core.AnalysisResult{Findings: []core.Finding{}, Diagnostics: []core.Diagnostic{}}
 	if len(files) == 0 {
-		return nil, nil
+		return analysis
 	}
 
 	// Build batch request
 	var sb strings.Builder
 	sb.WriteString("Analyze the following files for vulnerabilities:\n\n")
-	for path, content := range files {
+	paths := make([]string, 0, len(files))
+	for path := range files {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		content := files[path]
 		// Truncate oversized files
 		code := content
 		if len(code) > 3000 {
@@ -57,15 +66,20 @@ func (ba *BatchAnalyzer) AnalyzeBatch(files map[string]string) ([]static.Finding
 		sb.WriteString(fmt.Sprintf("### %s\n```\n%s\n```\n\n", path, code))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), ba.timeout)
+	callCtx, cancel := context.WithTimeout(ctx, ba.timeout)
 	defer cancel()
 
-	result, err := ba.client.Chat(ctx, batchSystemPrompt, sb.String())
+	result, err := ba.client.Chat(callCtx, batchSystemPrompt, sb.String())
 	if err != nil {
-		return nil, err
+		analysis.Diagnostics = append(analysis.Diagnostics, core.Diagnostic{
+			Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticWarning,
+			Code: "llm-batch.request", Source: "llm-batch", Message: err.Error(), Cause: err,
+		})
+		return analysis
 	}
 
-	return parseBatchResults(result), nil
+	analysis.Findings, analysis.Diagnostics = parseBatchResults(result, request)
+	return analysis
 }
 
 // batchIssue represents a single issue returned by the LLM batch.
@@ -77,8 +91,9 @@ type batchIssue struct {
 	Message  string `json:"message"`
 }
 
-func parseBatchResults(result string) []static.Finding {
-	var findings []static.Finding
+func parseBatchResults(result string, request core.ScanRequest) ([]core.Finding, []core.Diagnostic) {
+	findings := []core.Finding{}
+	diagnostics := []core.Diagnostic{}
 
 	// Parse JSON objects on each line
 	lines := strings.Split(result, "\n")
@@ -88,83 +103,63 @@ func parseBatchResults(result string) []static.Finding {
 			continue
 		}
 
-		// Simple JSON parsing
 		var issue batchIssue
-		if err := jsonUnmarshalSimple(line, &issue); err != nil {
+		if err := json.Unmarshal([]byte(line), &issue); err != nil {
+			diagnostics = append(diagnostics, core.Diagnostic{
+				Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticWarning,
+				Code: "llm-batch.invalid-output", Source: "llm-batch", Message: err.Error(), Cause: err,
+			})
 			continue
 		}
-
-		findings = append(findings, static.Finding{
-			Rule:     "sift.llm-" + issue.Category,
-			Severity: parseSeverity(issue.Severity),
-			Category: issue.Category,
-			File:     issue.File,
-			Line:     issue.Line,
-			Message:  fmt.Sprintf("[LLM Batch] %s", issue.Message),
+		relativePath, err := request.RelativePath(issue.File)
+		if err != nil {
+			diagnostics = append(diagnostics, core.Diagnostic{
+				Kind: core.DiagnosticTarget, Severity: core.DiagnosticError,
+				Code: "llm-batch.location.outside-root", Source: "llm-batch",
+				Message: "Batch model returned a location outside the scan root", Cause: err,
+			})
+			continue
+		}
+		category := strings.TrimSpace(issue.Category)
+		if category == "" {
+			category = "security"
+		}
+		finding, err := core.NewFinding(core.FindingInput{
+			Source: "llm-batch", Rule: "sift.llm-" + category,
+			Message:  fmt.Sprintf("[LLM Batch] %s", strings.TrimSpace(issue.Message)),
+			Severity: parseSeverity(issue.Severity), Category: category, Confidence: core.ConfidenceLow,
+			Location: core.Location{Path: relativePath, Line: issue.Line},
+			Evidence: []core.Evidence{{
+				Kind:        core.EvidenceModel,
+				Description: "An optional language model identified this candidate in a batch response; deterministic confirmation is required.",
+			}},
+			Remediation: "Confirm the reported issue with deterministic analysis before applying a targeted fix.",
+			StableKey:   fmt.Sprintf("%d:%s", issue.Line, strings.TrimSpace(issue.Message)),
 		})
+		if err != nil {
+			diagnostics = append(diagnostics, core.Diagnostic{
+				Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticWarning,
+				Code: "llm-batch.invalid-finding", Source: "llm-batch", Message: err.Error(), Cause: err,
+			})
+			continue
+		}
+		findings = append(findings, finding)
 	}
 
-	return findings
+	return findings, diagnostics
 }
 
-func jsonUnmarshalSimple(s string, v *batchIssue) error {
-	// Minimal JSON parser, avoids the performance overhead of encoding/json
-	extract := func(key string) string {
-		start := strings.Index(s, `"`+key+`"`)
-		if start == -1 {
-			return ""
-		}
-		colon := strings.Index(s[start:], ":")
-		if colon == -1 {
-			return ""
-		}
-		rest := s[start+colon+1:]
-		rest = strings.TrimSpace(rest)
-
-		if strings.HasPrefix(rest, `"`) {
-			rest = rest[1:]
-			end := strings.Index(rest, `"`)
-			if end == -1 {
-				return rest
-			}
-			return rest[:end]
-		}
-
-		// Number
-		end := strings.IndexAny(rest, ",}")
-		if end == -1 {
-			return rest
-		}
-		return strings.TrimSpace(rest[:end])
-	}
-
-	v.File = extract("file")
-	v.Severity = extract("severity")
-	v.Category = extract("category")
-	v.Message = extract("message")
-
-	lineStr := extract("line")
-	if lineStr != "" {
-		fmt.Sscanf(lineStr, "%d", &v.Line)
-	}
-
-	if v.File == "" {
-		return fmt.Errorf("missing file")
-	}
-	return nil
-}
-
-func parseSeverity(s string) static.Severity {
+func parseSeverity(s string) core.Severity {
 	switch strings.ToLower(s) {
 	case "critical":
-		return static.SeverityCritical
+		return core.SeverityCritical
 	case "high":
-		return static.SeverityHigh
+		return core.SeverityHigh
 	case "medium":
-		return static.SeverityMedium
+		return core.SeverityMedium
 	case "low":
-		return static.SeverityLow
+		return core.SeverityLow
 	default:
-		return static.SeverityMedium
+		return core.SeverityMedium
 	}
 }

@@ -67,19 +67,19 @@ func newFixCmd() *cobra.Command {
 			fixedCount := 0
 			for i, r := range results {
 				if !r.Fixed {
-					fmt.Printf("  ❌ [%d/%d] %s: %s\n", i+1, len(results), r.Finding.File, r.Error)
+					fmt.Printf("  ❌ [%d/%d] %s: %s\n", i+1, len(results), r.Finding.Location.Path, r.Error)
 					continue
 				}
 
 				if dryRun {
-					fmt.Printf("  📝 [%d/%d] %s:%d — %s\n", i+1, len(results), r.Finding.File, r.Finding.Line, r.Finding.Rule)
+					fmt.Printf("  📝 [%d/%d] %s:%d — %s\n", i+1, len(results), r.Finding.Location.Path, r.Finding.Location.Line, r.Finding.Rule)
 					fmt.Printf("     %s\n", truncateLines(r.Patch, 3))
 					continue
 				}
 
 				if interactive {
 					fmt.Printf("\n  ── Fix [%d/%d] ──\n", i+1, len(results))
-					fmt.Printf("  File: %s:%d\n", r.Finding.File, r.Finding.Line)
+					fmt.Printf("  File: %s:%d\n", r.Finding.Location.Path, r.Finding.Location.Line)
 					fmt.Printf("  Issue: %s\n", r.Finding.Message)
 					fmt.Printf("  Fix:\n%s\n", r.Patch)
 					fmt.Print("  Apply this fix? [y/N/a(ll)/q(uit)]: ")
@@ -107,11 +107,11 @@ func newFixCmd() *cobra.Command {
 					if err := fixer.ApplyFix(r); err != nil {
 						fmt.Printf("  ❌ [%d/%d] Apply failed: %v\n", i+1, len(results), err)
 					} else {
-						fmt.Printf("  ✅ [%d/%d] Fixed: %s:%d\n", i+1, len(results), r.Finding.File, r.Finding.Line)
+						fmt.Printf("  ✅ [%d/%d] Fixed: %s:%d\n", i+1, len(results), r.Finding.Location.Path, r.Finding.Location.Line)
 						fixedCount++
 					}
 				} else {
-					fmt.Printf("  📝 [%d/%d] %s:%d\n     %s\n", i+1, len(results), r.Finding.File, r.Finding.Line, truncateLines(r.Patch, 3))
+					fmt.Printf("  📝 [%d/%d] %s:%d\n     %s\n", i+1, len(results), r.Finding.Location.Path, r.Finding.Location.Line, truncateLines(r.Patch, 3))
 				}
 			}
 

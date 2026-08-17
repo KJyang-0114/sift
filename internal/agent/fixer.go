@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/KJyang-0114/sift/internal/config"
+	"github.com/KJyang-0114/sift/internal/core"
 	"github.com/KJyang-0114/sift/internal/llm"
 	"github.com/KJyang-0114/sift/internal/securepath"
-	"github.com/KJyang-0114/sift/internal/static"
 )
 
 // Fixer uses LLM to automatically generate and apply fixes.
@@ -23,10 +23,10 @@ type Fixer struct {
 
 // FixResult is the result of a single fix operation.
 type FixResult struct {
-	Finding static.Finding `json:"finding"`
-	Fixed   bool           `json:"fixed"`
-	Patch   string         `json:"patch,omitempty"`
-	Error   string         `json:"error,omitempty"`
+	Finding core.Finding `json:"finding"`
+	Fixed   bool         `json:"fixed"`
+	Patch   string       `json:"patch,omitempty"`
+	Error   string       `json:"error,omitempty"`
 }
 
 // NewFixer creates an auto-fixer.
@@ -53,7 +53,7 @@ func (f *Fixer) Name() string {
 
 // Fix generates fix suggestions for each finding in the list.
 // Returns the fix result for each finding.
-func (f *Fixer) Fix(findings []static.Finding) []FixResult {
+func (f *Fixer) Fix(findings []core.Finding) []FixResult {
 	var results []FixResult
 
 	count := 0
@@ -86,14 +86,14 @@ func (f *Fixer) ApplyFix(result FixResult) error {
 	}
 
 	// Read original file (validated against project directory)
-	content, err := securepath.ReadFile(f.projectDir, result.Finding.File)
+	content, err := securepath.ReadFile(f.projectDir, result.Finding.Location.Path)
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
 
 	// Backup original content
 	backup := string(content)
-	backupPath := result.Finding.File + ".sift.bak"
+	backupPath := result.Finding.Location.Path + ".sift.bak"
 	if err := securepath.WriteFile(f.projectDir, backupPath, content, 0o644); err != nil {
 		_ = err // backup write failure is non-fatal
 	}
@@ -105,9 +105,9 @@ func (f *Fixer) ApplyFix(result FixResult) error {
 	}
 
 	// Write back to file (validated against project directory)
-	if err := securepath.WriteFile(f.projectDir, result.Finding.File, []byte(patched), 0o644); err != nil {
+	if err := securepath.WriteFile(f.projectDir, result.Finding.Location.Path, []byte(patched), 0o644); err != nil {
 		// Rollback
-		securepath.WriteFile(f.projectDir, result.Finding.File, []byte(backup), 0o644)
+		securepath.WriteFile(f.projectDir, result.Finding.Location.Path, []byte(backup), 0o644)
 		return fmt.Errorf("failed to write fix: %w", err)
 	}
 
@@ -181,23 +181,23 @@ Fix this security issue:
 Generate the exact code fix (old -> new).`
 
 // generateFix uses LLM to generate a fix for a single issue.
-func (f *Fixer) generateFix(finding static.Finding) (string, error) {
+func (f *Fixer) generateFix(finding core.Finding) (string, error) {
 	// Read file content (validated against project directory; 5 lines of context before and after)
-	fileContent, err := securepath.ReadFile(f.projectDir, finding.File)
+	fileContent, err := securepath.ReadFile(f.projectDir, finding.Location.Path)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}
 
 	lines := strings.Split(string(fileContent), "\n")
-	start := max(finding.Line-6, 0)
-	end := min(finding.Line+5, len(lines))
+	start := max(finding.Location.Line-6, 0)
+	end := min(finding.Location.Line+5, len(lines))
 	contextLines := strings.Join(lines[start:end], "\n")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	userMsg := fmt.Sprintf(fixerUserTemplate,
-		finding.File, finding.Line, finding.Severity, finding.Rule, finding.Message, contextLines,
+		finding.Location.Path, finding.Location.Line, finding.Severity, finding.Rule, finding.Message, contextLines,
 	)
 
 	result, err := f.client.Chat(ctx, fixerSystemPrompt, userMsg)

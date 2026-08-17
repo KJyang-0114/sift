@@ -57,6 +57,23 @@ func (request ScanRequest) AbsoluteTargets() []string {
 	return targets
 }
 
+// RelativePath converts a candidate path to a safe repository-relative path.
+// Symlink-aware containment is enforced by the target resolver introduced in A3.
+func (request ScanRequest) RelativePath(candidate string) (string, error) {
+	candidate = strings.TrimSpace(candidate)
+	if candidate == "" {
+		return "", fmt.Errorf("candidate path is required")
+	}
+	if filepath.IsAbs(candidate) {
+		relative, err := filepath.Rel(request.root, filepath.Clean(candidate))
+		if err != nil {
+			return "", fmt.Errorf("make path relative to scan root: %w", err)
+		}
+		return normalizeTarget(relative)
+	}
+	return normalizeTarget(candidate)
+}
+
 func normalizeTarget(target string) (string, error) {
 	target = strings.ReplaceAll(strings.TrimSpace(target), "\\", "/")
 	if target == "" {
