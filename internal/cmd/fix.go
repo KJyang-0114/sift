@@ -34,15 +34,19 @@ func newFixCmd() *cobra.Command {
 			}
 
 			// Load configuration
-			cfg, _, err := config.Load()
+			cfgPath, _ := cmd.Flags().GetString("config")
+			cfg, _, err := config.LoadFile(cfgPath)
 			if err != nil {
-				return err
+				return usageError(err)
 			}
 
 			// Phase 1: Scan
 			fmt.Println("  🔍 Phase 1: Scanning for security vulnerabilities...")
 			orch := scan.NewOrchestrator(cfg)
-			if err := orch.Run(target, "terminal"); err != nil {
+			if err := orch.RunTo(cmd.Context(), target, "terminal", cmd.OutOrStdout()); err != nil {
+				if ExitCode(err) != 3 {
+					return err
+				}
 				// Even if scan partially fails, continue with fix attempt
 				fmt.Fprintf(os.Stderr, "  ⚠️  Scan partially failed: %v\n", err)
 			}

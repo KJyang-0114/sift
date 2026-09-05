@@ -92,6 +92,8 @@ func (tg *TestGenerator) testFile(ctx context.Context, request core.ScanRequest,
 	if err != nil || testCode == "" {
 		if err != nil {
 			result.Diagnostics = append(result.Diagnostics, testGeneratorDiagnostic("test-generator.request", err))
+		} else {
+			result.Diagnostics = append(result.Diagnostics, testGeneratorDiagnostic("test-generator.invalid-output", fmt.Errorf("model returned empty test code")))
 		}
 		return result
 	}
@@ -100,7 +102,7 @@ func (tg *TestGenerator) testFile(ctx context.Context, request core.ScanRequest,
 	execution, err := tg.sandbox.Run(testCode, "python")
 	if err != nil {
 		result.Diagnostics = append(result.Diagnostics, core.Diagnostic{
-			Kind: core.DiagnosticIntegration, Severity: core.DiagnosticWarning,
+			Kind: core.DiagnosticIntegration, Severity: core.DiagnosticError,
 			Code: "test-generator.execution", Source: tg.Name(), Message: err.Error(), Cause: err,
 		})
 		return result
@@ -112,7 +114,7 @@ func (tg *TestGenerator) testFile(ctx context.Context, request core.ScanRequest,
 
 func testGeneratorDiagnostic(code string, err error) core.Diagnostic {
 	return core.Diagnostic{
-		Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticWarning,
+		Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticError,
 		Code: code, Source: "test-generator", Message: err.Error(), Cause: err,
 	}
 }

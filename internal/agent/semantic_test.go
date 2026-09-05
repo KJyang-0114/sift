@@ -48,4 +48,7 @@ func TestParseSemanticResultReportsMalformedModelOutput(t *testing.T) {
 	if len(diagnostics) != 1 || diagnostics[0].Code != "llm.invalid-output" {
 		t.Fatalf("diagnostics = %#v", diagnostics)
 	}
+	if diagnostics[0].Severity != core.DiagnosticError {
+		t.Fatal("malformed model output must make analysis incomplete")
+	}
 }

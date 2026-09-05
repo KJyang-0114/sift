@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Sift",
+          "rules": [
+            {
+              "id": "fixture.rule",
+              "shortDescription": {
+                "text": "fixture finding"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "fixture.rule",
+          "level": "error",
+          "message": {
+            "text": "fixture finding"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "demo.py"
+                },
+                "region": {
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
+                }
+              }
+            }
+          ],
+          "relatedLocations": [],
+          "partialFingerprints": {
+            "sift/v2": "sha256:fa94a8e5198ea5d5adcc1a493e5c37010b2436d2783be37c9ae074d0c88b4c3a"
+          },
+          "properties": {
+            "category": "security",
+            "confidence": "high",
+            "id": "semgrep/fixture.rule/fa94a8e5198ea5d5",
+            "remediation": "Review the matched data flow and apply the remediation for this Semgrep rule.",
+            "schemaVersion": "2",
+            "source": "semgrep",
+            "suppressed": false
+          }
+        }
+      ],
+      "invocations": [
+        {
+          "executionSuccessful": false,
+          "toolExecutionNotifications": [
+            {
+              "level": "error",
+              "message": {
+                "text": "Semgrep execution failed: exit status 2"
+              },
+              "properties": {
+                "code": "semgrep.execution",
+                "kind": "analyzer",
+                "source": "semgrep"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

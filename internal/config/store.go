@@ -49,14 +49,24 @@ func Save(cfg *Config) (string, error) {
 
 // Load loads configuration from the default path. Returns defaults if the config file does not exist.
 func Load() (*Config, string, error) {
-	path, err := ConfigPath()
-	if err != nil {
-		return nil, "", err
+	return LoadFile("")
+}
+
+// LoadFile loads an explicit file, or the optional default file when path is empty.
+// Explicit paths never silently fall back to defaults.
+func LoadFile(path string) (*Config, string, error) {
+	explicit := path != ""
+	if !explicit {
+		var err error
+		path, err = ConfigPath()
+		if err != nil {
+			return nil, "", err
+		}
 	}
 
 	cfg := Default()
 
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if _, err := os.Stat(path); !explicit && os.IsNotExist(err) {
 		cfg.applyEnvOverrides()
 		return cfg, path, nil
 	}

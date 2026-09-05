@@ -8,6 +8,8 @@ Sift 是 Vibecoding 時代的守門員。它結合 Semgrep 靜態規則與 LLM �
 
 ## 快速開始
 
+先安裝 Semgrep（例如於 Python 環境執行 `pip install semgrep`）。Sift 掃描不會自動安裝外部工具。
+
 ```bash
 # 1. 安裝
 curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh | bash
@@ -61,6 +63,14 @@ sudo mv sift /usr/local/bin/
 ```
 
 ## 使用方式
+
+### 掃描完整性
+
+`scan` 的退出碼：`0`＝啟用的分析完成、`2`＝參數／設定／目標錯誤、`3`＝部分掃描失敗、`4`＝內部／報告寫入失敗。Findings 目前是 advisory，尚無 finding gate；`1` 保留供後續使用。
+
+JSON 帶有 `status: complete / partial`，SARIF 以 `executionSuccessful` 表達完整性；部分失敗仍保留 findings 與 diagnostics。空 diff 仍輸出有效報告。Registry 的 401／429／5xx 不會變成不存在套件的 finding。
+
+`--config FILE` 指定必須存在的設定檔；`--quiet` 保留 JSON／SARIF／LLM 輸出，`--verbose` 將摘要寫到 stderr。CI 先保存並上傳有效報告，再回傳退出碼。詳見 [遷移文件](MIGRATION.md)。
 
 ### 基本掃描
 
@@ -140,7 +150,7 @@ sift scan .
 - **幻覺套件檢測**：驗證依賴是否真實存在於 NPM / PyPI / Cargo 註冊表
 - **LLM 語意分析**：偵測邏輯錯誤、Prompt Injection 風險
 - **自動測試生成**：AST + LLM 雙層推導邊界測試用例
-- **沙盒動態執行**：隔離環境中實際執行程式碼、攔截 Runtime 錯誤
+- **實驗性動態執行**：目前 Orbital 使用主機程序與暫存目錄執行生成測試；容器隔離與明確執行政策仍待實作。
 - **LLM 直送輸出**：`--format llm` 產出可直接丟給 LLM 修復的報告
 
 ## 設定
@@ -163,13 +173,7 @@ format = "terminal"           # terminal | json | sarif | llm
 color = true
 ```
 
-專案級設定可放在專案根目錄的 `.sift.toml`：
-
-```toml
-[rules]
-ignore = ["vendor/", "node_modules/", "*.pb.go"]
-severity = ["critical", "high", "medium"]
-```
+可使用 `sift scan . --config path/to/config.toml` 指定設定檔。專案級 `.sift.toml` 自動載入、`rules.ignore` 與 severity policy 尚未接入。
 
 ## 授權
 

@@ -110,7 +110,7 @@ func (sa *SemanticAnalyzer) analyzeFile(ctx context.Context, request core.ScanRe
 
 func llmDiagnostic(code string, err error) core.Diagnostic {
 	return core.Diagnostic{
-		Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticWarning,
+		Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticError,
 		Code: code, Source: "llm-semantic", Message: err.Error(), Cause: err,
 	}
 }

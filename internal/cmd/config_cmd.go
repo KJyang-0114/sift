@@ -13,9 +13,10 @@ func newConfigCmd() *cobra.Command {
 		Short: "View or modify configuration",
 		Long:  `Display current config file contents and path.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, path, err := config.Load()
+			cfgPath, _ := cmd.Flags().GetString("config")
+			cfg, path, err := config.LoadFile(cfgPath)
 			if err != nil {
-				return fmt.Errorf("cannot load config: %w", err)
+				return usageError(fmt.Errorf("cannot load config: %w", err))
 			}
 
 			fmt.Printf("Config file path: %s\n", path)

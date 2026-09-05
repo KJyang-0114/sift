@@ -1,0 +1,35 @@
+{
+  "schema_url": "https://json.schemastore.org/sarif-2.1.0.json",
+  "schema_sha256": "7c9688f0a1c4a4e1649ecc78521087e664729c1dff56ee8212ff195c7b16132a",
+  "sarif_cases": [
+    {
+      "case": "clean",
+      "exit_code": 0,
+      "sarif_schema_valid": true,
+      "findings": 0
+    },
+    {
+      "case": "finding",
+      "exit_code": 0,
+      "sarif_schema_valid": true,
+      "findings": 1
+    },
+    {
+      "case": "partial",
+      "exit_code": 3,
+      "sarif_schema_valid": true,
+      "findings": 1
+    },
+    {
+      "case": "errors",
+      "exit_code": 3,
+      "sarif_schema_valid": true,
+      "findings": 0
+    }
+  ],
+  "workflow_shell_cases": [
+    "complete report retained with exit 0",
+    "partial report retained with exit 3"
+  ],
+  "method": "Local fake Semgrep subprocess; no remote model or generated-code execution; GitHub upload itself not run."
+}

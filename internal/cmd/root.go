@@ -1,16 +1,32 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"io"
+
+	"github.com/KJyang-0114/sift/internal/core"
 
 	"github.com/spf13/cobra"
 )
 
-var (
-	cfgFile string
-	verbose bool
-	quiet   bool
-)
+// Execute classifies Cobra routing/usage failures before a command starts.
+// Operational errors returned by command handlers retain their own classification.
+func Execute(ctx context.Context, version, commit, date string, args []string, stdout, stderr io.Writer) error {
+	root := NewRootCmd(version, commit, date)
+	root.SetArgs(args)
+	root.SetOut(stdout)
+	root.SetErr(stderr)
+	started := false
+	root.PersistentPreRun = func(*cobra.Command, []string) { started = true }
+	err := root.ExecuteContext(ctx)
+	var operation *core.OperationError
+	if err != nil && !started && !errors.As(err, &operation) {
+		return usageError(err)
+	}
+	return err
+}
 
 // NewRootCmd creates the root command for sift CLI.
 func NewRootCmd(version, commit, date string) *cobra.Command {
@@ -23,12 +39,15 @@ func NewRootCmd(version, commit, date string) *cobra.Command {
 
 	One command to scan: sift scan .
 	One command to configure: sift init`,
-		Version: fmt.Sprintf("%s (commit: %s, built: %s)", version, commit, date),
+		Version:       fmt.Sprintf("%s (commit: %s, built: %s)", version, commit, date),
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
 
-	root.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path (default ~/.sift/config.toml)")
-	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
-	root.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "suppress output, only show errors")
+	root.PersistentFlags().String("config", "", "config file path (default ~/.sift/config.toml)")
+	root.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+	root.PersistentFlags().BoolP("quiet", "q", false, "suppress terminal report, only show diagnostics")
+	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usageError(err) })
 
 	root.AddCommand(newInitCmd())
 	root.AddCommand(newScanCmd())

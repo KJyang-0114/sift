@@ -1,87 +1,110 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/KJyang-0114/sift/internal/config"
+	"github.com/KJyang-0114/sift/internal/core"
+	"github.com/KJyang-0114/sift/internal/report"
 	"github.com/KJyang-0114/sift/internal/scan"
 	"github.com/spf13/cobra"
 )
 
-func newScanCmd() *cobra.Command {
-	var (
-		format  string
-		sandbox string
-		timeout int
-		diffRef string
-	)
+type scanService interface {
+	SetDiffMode(string)
+	Scan(context.Context, string) (core.ScanResult, error)
+}
 
-	cmd := &cobra.Command{
+func newScanCmd() *cobra.Command {
+	return newScanCmdWithFactory(func(cfg *config.Config) scanService { return scan.NewOrchestrator(cfg) })
+}
+
+func newScanCmdWithFactory(factory func(*config.Config) scanService) *cobra.Command {
+	var format, sandbox, diffRef string
+	var timeout int
+	command := &cobra.Command{
 		Use:   "scan [path]",
 		Short: "Scan code for security vulnerabilities",
-		Long: `scan performs a fully automated security scan on the given path, including:
-	  - Static rule scanning (Semgrep)
-	  - Hallucinated package detection
-	  - Sandbox dynamic testing (optional)
-
-	Supports directories, single files, or Git diff scanning.`,
-		Args: cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Long: `Scan directories, single files, or tracked Git changes with static rules,
+package verification, and configured optional analyzers.
+Findings are advisory. Incomplete analysis returns exit code 3.`,
+		Args: func(command *cobra.Command, args []string) error {
+			if err := cobra.MaximumNArgs(1)(command, args); err != nil {
+				return usageError(err)
+			}
+			return nil
+		},
+		RunE: func(command *cobra.Command, args []string) error {
 			target := "."
 			if len(args) > 0 {
 				target = args[0]
 			}
-
-			// Path validation: reject paths containing ../ (path traversal protection)
-			if strings.Contains(target, "..") {
-				return fmt.Errorf("path not allowed: %s", target)
-			}
-
-			absTarget, err := filepath.Abs(target)
+			cfgPath, _ := command.Flags().GetString("config")
+			cfg, _, err := config.LoadFile(cfgPath)
 			if err != nil {
-				return fmt.Errorf("cannot resolve path: %w", err)
+				return usageError(err)
 			}
-			if _, err := os.Stat(absTarget); err != nil {
-				return fmt.Errorf("path does not exist: %s", absTarget)
+			if command.Flags().Changed("timeout") {
+				cfg.Scan.Timeout = timeout
 			}
-
-			// Load configuration
-			cfg, _, err := config.Load()
+			if command.Flags().Changed("sandbox") {
+				cfg.Scan.Sandbox = sandbox
+			}
+			if command.Flags().Changed("format") {
+				cfg.Output.Format = format
+			}
+			if !report.ValidFormat(cfg.Output.Format) {
+				return usageError(fmt.Errorf("unsupported output format %q", cfg.Output.Format))
+			}
+			if cfg.Scan.Timeout <= 0 {
+				return usageError(fmt.Errorf("scan timeout must be greater than zero"))
+			}
+			if cfg.Scan.Concurrency <= 0 {
+				return usageError(fmt.Errorf("scan concurrency must be greater than zero"))
+			}
+			if cfg.Scan.Sandbox != "orbital" {
+				return usageError(fmt.Errorf("unsupported sandbox %q", cfg.Scan.Sandbox))
+			}
+			quiet, _ := command.Flags().GetBool("quiet")
+			verbose, _ := command.Flags().GetBool("verbose")
+			if quiet && verbose {
+				return usageError(fmt.Errorf("--quiet and --verbose cannot be used together"))
+			}
+			if command.Flags().Changed("diff") && diffRef == "" {
+				return usageError(fmt.Errorf("git diff reference must not be empty"))
+			}
+			service := factory(cfg)
+			if command.Flags().Changed("diff") {
+				service.SetDiffMode(diffRef)
+			}
+			result, err := service.Scan(command.Context(), target)
 			if err != nil {
 				return err
 			}
-
-			// Command-line flags override config
-			if cmd.Flags().Changed("timeout") {
-				cfg.Scan.Timeout = timeout
+			// Diagnostics stay inside every report. Mirror them to stderr for pipelines
+			// and quiet terminal use, without duplicating the normal terminal report.
+			if quiet || cfg.Output.Format == "json" || cfg.Output.Format == "sarif" {
+				for _, diagnostic := range result.Diagnostics {
+					fmt.Fprintf(command.ErrOrStderr(), "%s [%s] %s: %s\n", diagnostic.Severity, diagnostic.Code, diagnostic.Source, diagnostic.Message)
+				}
 			}
-			if cmd.Flags().Changed("sandbox") {
-				cfg.Scan.Sandbox = sandbox
+			if verbose {
+				fmt.Fprintf(command.ErrOrStderr(), "scan status=%s findings=%d diagnostics=%d duration=%s\n", result.Status(), len(result.Findings), len(result.Diagnostics), result.Duration)
 			}
-			if cmd.Flags().Changed("format") {
-				cfg.Output.Format = format
+			// Quiet never removes a machine-readable report from a pipeline.
+			if !quiet || cfg.Output.Format != "terminal" {
+				if err := report.NewEngine(cfg).Render(command.OutOrStdout(), result.Findings, result.Diagnostics, result.Target, result.Duration, cfg.Output.Format); err != nil {
+					return &core.OperationError{Kind: core.DiagnosticInternal, Err: fmt.Errorf("write %s report: %w", cfg.Output.Format, err)}
+				}
 			}
-
-			orch := scan.NewOrchestrator(cfg)
-			if cmd.Flags().Changed("diff") {
-				orch.SetDiffMode(diffRef)
-			}
-			if err := orch.Run(absTarget, cfg.Output.Format); err != nil {
-				os.Exit(1)
-			}
-
-			return nil
+			return result.Err()
 		},
 	}
-
-	cmd.Flags().StringVarP(&format, "format", "f", "terminal", "output format (terminal|json|sarif|llm)")
-	cmd.Flags().StringVar(&sandbox, "sandbox", "orbital", "sandbox mode (orbital)")
-	cmd.Flags().IntVarP(&timeout, "timeout", "t", 120, "max scan seconds per file")
-	cmd.Flags().StringVar(&diffRef, "diff", "", "scan changed files only (optional git ref, default: HEAD)")
-	cmd.Flags().Lookup("diff").NoOptDefVal = "HEAD"
-
-	return cmd
+	command.Flags().StringVarP(&format, "format", "f", "terminal", "output format (terminal|json|sarif|llm)")
+	command.Flags().StringVar(&sandbox, "sandbox", "orbital", "sandbox mode (orbital)")
+	command.Flags().IntVarP(&timeout, "timeout", "t", 120, "max scan seconds per analyzer")
+	command.Flags().StringVar(&diffRef, "diff", "", "scan tracked changes against a commit (default: HEAD; excludes untracked/deleted files)")
+	command.Flags().Lookup("diff").NoOptDefVal = "HEAD"
+	return command
 }

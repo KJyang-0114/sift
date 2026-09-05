@@ -72,7 +72,7 @@ func (ba *BatchAnalyzer) AnalyzeBatch(ctx context.Context, request core.ScanRequ
 	result, err := ba.client.Chat(callCtx, batchSystemPrompt, sb.String())
 	if err != nil {
 		analysis.Diagnostics = append(analysis.Diagnostics, core.Diagnostic{
-			Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticWarning,
+			Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticError,
 			Code: "llm-batch.request", Source: "llm-batch", Message: err.Error(), Cause: err,
 		})
 		return analysis
@@ -106,7 +106,7 @@ func parseBatchResults(result string, request core.ScanRequest) ([]core.Finding,
 		var issue batchIssue
 		if err := json.Unmarshal([]byte(line), &issue); err != nil {
 			diagnostics = append(diagnostics, core.Diagnostic{
-				Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticWarning,
+				Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticError,
 				Code: "llm-batch.invalid-output", Source: "llm-batch", Message: err.Error(), Cause: err,
 			})
 			continue
@@ -138,7 +138,7 @@ func parseBatchResults(result string, request core.ScanRequest) ([]core.Finding,
 		})
 		if err != nil {
 			diagnostics = append(diagnostics, core.Diagnostic{
-				Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticWarning,
+				Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticError,
 				Code: "llm-batch.invalid-finding", Source: "llm-batch", Message: err.Error(), Cause: err,
 			})
 			continue

@@ -29,18 +29,33 @@ jobs:
       - name: Install semgrep
         run: pip3 install semgrep
 
-      - name: Build and run Sift
+      - name: Build Sift
+        run: go build -o sift ./cmd/sift/
+
+      - name: Run Sift once and retain its exit code
+        id: scan
         env:
           SIFT_LLM_PROVIDER: offline
         run: |
-          go build -o sift ./cmd/sift/
-          ./sift scan . --format terminal
-          ./sift scan . --format sarif > sift-results.sarif
-          echo "Scan complete, findings saved to sift-results.sarif"
+          scan_status=0
+          ./sift scan . --format sarif > sift-results.sarif || scan_status=$?
+          if python3 -c 'import json; r=json.load(open("sift-results.sarif")); assert r["version"] == "2.1.0" and len(r["runs"]) == 1'; then
+            echo "valid_report=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "valid_report=false" >> "$GITHUB_OUTPUT"
+            if [ "$scan_status" -eq 0 ]; then scan_status=4; fi
+          fi
+          echo "exit_code=$scan_status" >> "$GITHUB_OUTPUT"
 
       - name: Upload SARIF to GitHub
-        if: success()
+        if: ${{ !cancelled() && steps.scan.outputs.valid_report == 'true' }}
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: sift-results.sarif
           category: sift
+
+      - name: Return Sift scan status
+        if: ${{ !cancelled() && steps.scan.outputs.exit_code != '' }}
+        env:
+          SIFT_SCAN_EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
+        run: exit "$SIFT_SCAN_EXIT_CODE"
