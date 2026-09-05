@@ -67,6 +67,10 @@ go test ./...
 go build ./cmd/sift
 ```
 
+## 維護與路線圖
+
+目前的強化進度、已確認的安全與隱私原則，以及下一個 PR 的驗收條件，請參閱 [Maintainer Handoff](docs/MAINTAINER_HANDOFF.md)。
+
 ## 限制
 
 - 靜態規則與模型判斷都可能產生 false positive。
