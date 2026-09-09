@@ -66,5 +66,8 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Test platform filesystem and embedded rules
+        run: go test ./internal/securepath ./internal/static ./internal/agent ./internal/cmd -count=1
+
       - name: Build
         run: go build ./cmd/sift/

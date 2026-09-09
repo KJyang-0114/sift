@@ -142,3 +142,14 @@ func TestParseSemgrepOutputRejectsEscapingLocation(t *testing.T) {
 		t.Fatalf("diagnostics = %#v, want one target diagnostic", diagnostics)
 	}
 }
+
+func TestEmbeddedRulesLoadOnEveryPlatform(t *testing.T) {
+	if len(embeddedRules) == 0 {
+		t.Fatal("embedded rule bundle is empty")
+	}
+	for name, rule := range embeddedRules {
+		if rule == "" {
+			t.Fatalf("empty embedded rule %s", name)
+		}
+	}
+}
