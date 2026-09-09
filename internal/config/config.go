@@ -22,9 +22,16 @@ const (
 
 // Config is the complete configuration structure for Sift.
 type Config struct {
-	LLM    LLMConfig    `toml:"llm"`
-	Scan   ScanConfig   `toml:"scan"`
-	Output OutputConfig `toml:"output"`
+	LLM       LLMConfig       `toml:"llm"`
+	Scan      ScanConfig      `toml:"scan"`
+	Output    OutputConfig    `toml:"output"`
+	Execution ExecutionConfig `toml:"execution"`
+}
+
+// ExecutionConfig controls generated-code execution. Disabled by default.
+type ExecutionConfig struct {
+	Enabled  bool `toml:"enabled"`
+	Generate bool `toml:"generate"`
 }
 
 // LLMConfig defines LLM connection settings.
@@ -63,7 +70,29 @@ func Default() *Config {
 			Format: "terminal",
 			Color:  true,
 		},
+		Execution: ExecutionConfig{Enabled: false},
 	}
+}
+
+// Validate rejects configuration that cannot produce a trustworthy scan.
+func (c *Config) Validate() error {
+	if c.Scan.Timeout <= 0 || c.Scan.Concurrency <= 0 {
+		return fmt.Errorf("scan timeout and concurrency must be greater than zero")
+	}
+	if c.Scan.Sandbox != "orbital" {
+		return fmt.Errorf("unsupported sandbox %q", c.Scan.Sandbox)
+	}
+	switch c.Output.Format {
+	case "terminal", "json", "sarif", "llm":
+	default:
+		return fmt.Errorf("unsupported output format %q", c.Output.Format)
+	}
+	switch c.LLM.Provider {
+	case ProviderAnthropic, ProviderOpenAI, ProviderOpenRouter, ProviderOllama, ProviderSiliconFlow, ProviderGemini, ProviderDeepSeek, ProviderOffline:
+	default:
+		return fmt.Errorf("unsupported LLM provider %q", c.LLM.Provider)
+	}
+	return nil
 }
 
 // DefaultModel returns the default model for the given provider.

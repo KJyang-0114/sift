@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/KJyang-0114/sift/internal/config"
 	"github.com/KJyang-0114/sift/internal/core"
 )
 
@@ -24,8 +25,10 @@ func TestConfiguredModelFailuresMakeAnalysisPartial(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cfg := config.Default()
+	cfg.Execution.Generate = true
 	model := failingModel{err: errors.New("provider unavailable")}
-	for _, analyzer := range []core.Analyzer{&SemanticAnalyzer{client: model}, &TestGenerator{client: model}, &TestGenerator{client: failingModel{}}} {
+	for _, analyzer := range []core.Analyzer{&SemanticAnalyzer{client: model}, &TestGenerator{client: model, cfg: cfg}, &TestGenerator{client: failingModel{}, cfg: cfg}} {
 		result := analyzer.Analyze(context.Background(), request)
 		if len(result.Findings) != 0 || !result.HasErrors() || len(result.Diagnostics) != 1 {
 			t.Fatalf("%s failure = %#v", analyzer.Name(), result)

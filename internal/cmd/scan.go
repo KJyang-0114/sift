@@ -54,17 +54,8 @@ Findings are advisory. Incomplete analysis returns exit code 3.`,
 			if command.Flags().Changed("format") {
 				cfg.Output.Format = format
 			}
-			if !report.ValidFormat(cfg.Output.Format) {
-				return usageError(fmt.Errorf("unsupported output format %q", cfg.Output.Format))
-			}
-			if cfg.Scan.Timeout <= 0 {
-				return usageError(fmt.Errorf("scan timeout must be greater than zero"))
-			}
-			if cfg.Scan.Concurrency <= 0 {
-				return usageError(fmt.Errorf("scan concurrency must be greater than zero"))
-			}
-			if cfg.Scan.Sandbox != "orbital" {
-				return usageError(fmt.Errorf("unsupported sandbox %q", cfg.Scan.Sandbox))
+			if err := cfg.Validate(); err != nil {
+				return usageError(err)
 			}
 			quiet, _ := command.Flags().GetBool("quiet")
 			verbose, _ := command.Flags().GetBool("verbose")

@@ -1,6 +1,9 @@
 package agent
 
 import (
+	"github.com/KJyang-0114/sift/internal/core"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -108,5 +111,42 @@ func TestParseHunksSkipsMetadataAndComments(t *testing.T) {
 	}
 	if len(hunks[0].newLines) != 1 || hunks[0].newLines[0] != "new" {
 		t.Fatalf("new lines = %#v, want [new]", hunks[0].newLines)
+	}
+}
+
+func TestPatchRejectsAmbiguousAndSubstringMatches(t *testing.T) {
+	for _, original := range []string{"old\nold\n", "prefix_old_suffix\n"} {
+		got, err := applyPatch(original, "- old\n+ new")
+		if err == nil || got != original {
+			t.Fatalf("original=%q got=%q err=%v", original, got, err)
+		}
+	}
+}
+
+func TestApplyFixPreservesBackupAndRollback(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "app.py")
+	if err := os.WriteFile(path, []byte("old\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	fixer := &Fixer{projectDir: dir}
+	result := FixResult{Generated: true, Finding: core.Finding{Location: core.Location{Path: "app.py"}}, Patch: "- old\n+ new"}
+	if err := fixer.ApplyFix(result); err != nil {
+		t.Fatal(err)
+	}
+	result.Patch = "- new\n+ newer"
+	if err := fixer.ApplyFix(result); err == nil {
+		t.Fatal("overwrote existing backup")
+	}
+	got, _ := os.ReadFile(path)
+	if string(got) != "new\n" {
+		t.Fatalf("got %q", got)
+	}
+	if err := fixer.RollbackFix("app.py"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = os.ReadFile(path)
+	if string(got) != "old\n" {
+		t.Fatalf("rollback got %q", got)
 	}
 }

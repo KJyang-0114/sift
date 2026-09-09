@@ -1,4 +1,4 @@
-# Sift
+# Sift v1.5
 
 Go CLI，用靜態規則、套件驗證與選擇性 LLM 分析檢查程式碼，並輸出 terminal、JSON、SARIF 或 LLM-readable report。
 
@@ -39,9 +39,9 @@ CLI target / config / diff ref
 
 已知 vulnerability class 先交給可重現的 rules。LLM analyzer 用於補充語意判斷，不取代靜態檢查。
 
-### Offline mode
+### 無 LLM 模式
 
-沒有 provider key 時，static scan 與 package verification 仍可執行。外部模型只在設定完成後載入。
+provider = "offline" 時不呼叫 LLM；套件驗證仍會連線 registry。Ollama 不需要 API key。
 
 ### Output formats
 
@@ -92,3 +92,30 @@ go build ./cmd/sift
 ## License
 
 詳見 [LICENSE](LICENSE)。
+
+## v1.5 使用與復原
+
+從 GitHub Releases 下載對應平台壓縮檔，核對 `checksums.txt`，解壓後執行 `sift --version`。
+Semgrep 需另行安裝；規則已嵌入 binary。
+
+```bash
+sift fix . --dry-run
+sift fix path/to/file.py --interactive
+sift fix path/to/file.py --rollback
+```
+
+`--auto`、`--interactive`、`--dry-run`、`--rollback` 互斥。套用 patch 前建立 `.sift.bak`；已有備份時停止，不覆蓋原始版本。套用成功不代表通過測試。
+
+需要生成 Python 測試時，在設定加入：
+
+```toml
+[execution]
+generate = true
+enabled = false
+```
+
+測試保存在 `.sift/generated-tests/`，由你確認 imports、測試假設後手動執行。預設不生成，也不自動執行模型程式碼。Container executor 尚未提供；設為 `enabled = true` 會回報 partial，不會退回主機執行。
+
+版本變更見 [CHANGELOG.md](CHANGELOG.md)。
+
+維護者可使用 `python3 scripts/build-release.py --version 1.5.0` 重建六個平台壓縮檔與 SHA-256 清單；輸出位於 `dist/1.5.0/`，腳本不會發布遠端 release。

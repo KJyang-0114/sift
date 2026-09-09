@@ -1,3 +1,5 @@
+> v1.5.0: [Release changes](CHANGELOG.md) · [Migration guide](MIGRATION.md). Generated tests are export-only; host execution is disabled.
+
 # Sift
 
 ## スキャン結果の取り扱い

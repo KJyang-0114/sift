@@ -50,12 +50,14 @@ func NewOrchestrator(cfg *config.Config) *Orchestrator {
 	var initErr error
 
 	// If LLM is configured, add semantic analysis and test generation
-	if cfg.LLM.Provider != config.ProviderOffline && cfg.LLM.APIKey != "" {
+	if cfg.LLM.Provider != config.ProviderOffline && (cfg.LLM.APIKey != "" || cfg.LLM.Provider == config.ProviderOllama) {
 		if sa, err := agent.NewSemanticAnalyzer(cfg); err == nil {
 			staticAnalyzers = append(staticAnalyzers, sa)
 		} else {
 			initErr = fmt.Errorf("initialize semantic analyzer: %w", err)
 		}
+	}
+	if cfg.Execution.Enabled || cfg.Execution.Generate {
 		if tg, err := agent.NewTestGenerator(cfg); err == nil {
 			dynamicAnalyzers = append(dynamicAnalyzers, tg)
 		} else if initErr == nil {

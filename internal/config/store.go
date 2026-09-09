@@ -71,8 +71,14 @@ func LoadFile(path string) (*Config, string, error) {
 		return cfg, path, nil
 	}
 
-	if _, err := toml.DecodeFile(path, cfg); err != nil {
+	meta, err := toml.DecodeFile(path, cfg)
+	if err != nil {
 		return nil, path, fmt.Errorf("config file format error %s: %w", path, err)
+	}
+	if explicit {
+		if undecoded := meta.Undecoded(); len(undecoded) > 0 {
+			return nil, path, fmt.Errorf("config file contains unknown fields: %s", undecoded)
+		}
 	}
 
 	// Environment variable overrides

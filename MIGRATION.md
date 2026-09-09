@@ -1,5 +1,32 @@
 # Migration Guide
 
+## Configuration validation follow-up (unreleased)
+
+Both `scan` and `fix` reject invalid timeout, concurrency, sandbox, output format,
+and LLM provider settings before scanning, with exit code 2. Explicit configuration
+files also reject unknown fields; optional default configuration files retain
+their existing unknown-field behavior.
+
+## v1.5.0: generated tests and patch recovery
+
+Generated-test execution is disabled. `[execution] generate = true` exports
+Python tests under `.sift/generated-tests/`; review imports and assertions before
+running them manually. Exported tests are not verified fixes or confirmed defects.
+The default skips generation before any model call. `enabled = true` reports an
+unavailable executor and a partial scan without generating or executing code.
+No container backend or host fallback is included in v1.5.0.
+
+`fix` preserves partial-scan exit code 3 and reports generation/application failures.
+Applied patches are described as applied, not test-verified. Repeated old content
+and substring-only matches are rejected. Existing `.sift.bak` files are never
+overwritten; restore or archive the backup before another automatic change.
+Use `sift fix path/to/file --rollback` to restore one backup without a model key.
+Fix modes are mutually exclusive; a file target uses its parent as the scan root.
+
+Provider `offline` disables LLM calls; package registry lookups still use network.
+Ollama semantic analysis can run without an API key. SHA-256 cache remains a
+component, not a complete incremental analysis engine.
+
 ## Scan reliability follow-up (unreleased)
 
 `sift scan` now preserves partial findings and reports operational failures with

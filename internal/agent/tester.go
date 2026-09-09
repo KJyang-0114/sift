@@ -15,17 +15,19 @@ import (
 	"github.com/KJyang-0114/sift/internal/securepath"
 )
 
-// TestGenerator automatically generates test cases and runs them in a sandbox.
+// TestGenerator generates test cases without executing model output on the host.
 type TestGenerator struct {
-	client  llm.Client
-	sandbox *sandbox.Orbital
-	cfg     *config.Config
+	client llm.Client
+	cfg    *config.Config
 }
 
 var _ core.Analyzer = (*TestGenerator)(nil)
 
 // NewTestGenerator creates a test generator.
 func NewTestGenerator(cfg *config.Config) (*TestGenerator, error) {
+	if cfg.Execution.Enabled || !cfg.Execution.Generate {
+		return &TestGenerator{cfg: cfg}, nil
+	}
 	client, err := llm.NewClient(&cfg.LLM)
 	if err != nil {
 		return nil, err
@@ -35,9 +37,8 @@ func NewTestGenerator(cfg *config.Config) (*TestGenerator, error) {
 	}
 
 	return &TestGenerator{
-		client:  client,
-		sandbox: sandbox.NewOrbital(time.Duration(cfg.Scan.Timeout) * time.Second),
-		cfg:     cfg,
+		client: client,
+		cfg:    cfg,
 	}, nil
 }
 
@@ -46,26 +47,32 @@ func (tg *TestGenerator) Name() string {
 	return "test-generator"
 }
 
-// Analyze generates and runs tests against requested source files.
+// Analyze reports execution availability before reading source or calling a model.
 func (tg *TestGenerator) Analyze(ctx context.Context, request core.ScanRequest) core.AnalysisResult {
 	result := core.AnalysisResult{Findings: []core.Finding{}, Diagnostics: []core.Diagnostic{}}
-	// Only process Python files (priority support during MVP phase)
+	if tg.cfg != nil && tg.cfg.Execution.Enabled {
+		result.Diagnostics = append(result.Diagnostics, core.Diagnostic{Kind: core.DiagnosticPolicy, Severity: core.DiagnosticError, Code: "test-generator.executor-unavailable", Source: tg.Name(), Message: "generated test execution requires an approved container backend"})
+		return result
+	}
+	if tg.cfg == nil || !tg.cfg.Execution.Generate {
+		result.Diagnostics = append(result.Diagnostics, core.Diagnostic{Kind: core.DiagnosticPolicy, Severity: core.DiagnosticInfo, Code: "test-generator.execution-disabled", Source: tg.Name(), Message: "test generation skipped; set execution.generate=true to export tests without executing them"})
+		return result
+	}
 	files, err := tg.collectPythonFiles(request.AbsoluteTargets(), 10)
 	if err != nil {
 		result.Diagnostics = append(result.Diagnostics, testGeneratorDiagnostic("test-generator.collect-files", err))
 		return result
 	}
-
 	for _, file := range files {
-		fileResult := tg.testFile(ctx, request, file)
-		result.Findings = append(result.Findings, fileResult.Findings...)
-		result.Diagnostics = append(result.Diagnostics, fileResult.Diagnostics...)
+		generated := tg.testFile(ctx, request, file)
+		result.Findings = append(result.Findings, generated.Findings...)
+		result.Diagnostics = append(result.Diagnostics, generated.Diagnostics...)
 	}
-
 	return result
+
 }
 
-// testFile generates and runs tests for a single file.
+// testFile generates and exports tests for a single file.
 func (tg *TestGenerator) testFile(ctx context.Context, request core.ScanRequest, file string) core.AnalysisResult {
 	result := core.AnalysisResult{Findings: []core.Finding{}, Diagnostics: []core.Diagnostic{}}
 	relativePath, err := request.RelativePath(file)
@@ -98,17 +105,32 @@ func (tg *TestGenerator) testFile(ctx context.Context, request core.ScanRequest,
 		return result
 	}
 
-	// Step 2: Execute in sandbox
-	execution, err := tg.sandbox.Run(testCode, "python")
+	root, err := os.OpenRoot(request.Root())
 	if err != nil {
-		result.Diagnostics = append(result.Diagnostics, core.Diagnostic{
-			Kind: core.DiagnosticIntegration, Severity: core.DiagnosticError,
-			Code: "test-generator.execution", Source: tg.Name(), Message: err.Error(), Cause: err,
-		})
+		result.Diagnostics = append(result.Diagnostics, testGeneratorDiagnostic("test-generator.export", err))
 		return result
 	}
+	defer root.Close()
+	dir := filepath.Join(".sift", "generated-tests", filepath.Dir(relativePath))
+	if err := root.MkdirAll(dir, 0o700); err != nil {
+		result.Diagnostics = append(result.Diagnostics, testGeneratorDiagnostic("test-generator.export", err))
+		return result
+	}
+	name := filepath.Join(dir, fmt.Sprintf("test_%s_%d.py", strings.TrimSuffix(filepath.Base(relativePath), ".py"), time.Now().UnixNano()))
+	output, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err == nil {
+		_, err = output.WriteString(testCode + "\n")
+		closeErr := output.Close()
+		if err == nil {
+			err = closeErr
+		}
+	}
+	if err != nil {
+		result.Diagnostics = append(result.Diagnostics, testGeneratorDiagnostic("test-generator.export", err))
+		return result
+	}
+	result.Diagnostics = append(result.Diagnostics, core.Diagnostic{Kind: core.DiagnosticPolicy, Severity: core.DiagnosticInfo, Code: "test-generator.exported", Source: tg.Name(), Message: "Generated test saved (not executed): " + filepath.ToSlash(name)})
 
-	result.Findings, result.Diagnostics = executionFindings(request, file, execution)
 	return result
 }
 
@@ -165,7 +187,7 @@ func (tg *TestGenerator) collectPythonFiles(targets []string, maxFiles int) ([]s
 	var files []string
 
 	skipDirs := map[string]bool{
-		"node_modules": true, "vendor": true, ".git": true,
+		".sift": true, "node_modules": true, "vendor": true, ".git": true,
 		"__pycache__": true, "dist": true, "target": true,
 		"build": true, ".venv": true, "venv": true, "site-packages": true,
 	}

@@ -1,3 +1,5 @@
+> v1.5.0: [Release changes](CHANGELOG.md) · [Migration guide](MIGRATION.md). Generated tests are export-only; host execution is disabled.
+
 # Sift
 
 > AI 全自動程式碼安全掃描工具 — 開源、自帶 API Key、一行指令安裝。
