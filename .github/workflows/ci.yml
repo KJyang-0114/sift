@@ -35,6 +35,9 @@ jobs:
       - name: Check formatting
         run: test -z "$(gofmt -l $(find . -name '*.go' -not -path './vendor/*'))"
 
+      - name: Rule heuristic regressions
+        run: python3 scripts/test-rule-heuristics.py
+
       - name: Vet
         run: go vet ./...
 
