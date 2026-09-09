@@ -12,6 +12,7 @@ This release advances from v0.1.1 to the requested v1.5.0 release line.
 - Support file targets, tracked Git changes and empty diffs with valid reports.
 - Distinguish registry failures from nonexistent packages.
 - Use rooted file operations and reject escaping symlinks.
+- Narrow shell, LLM-call, environment-file and file-open heuristics to avoid unrelated identifiers and argument-array subprocess calls. These remain heuristics, not dataflow proofs.
 - Allow Ollama analysis without an API key.
 
 ### Fix and generated-test workflow

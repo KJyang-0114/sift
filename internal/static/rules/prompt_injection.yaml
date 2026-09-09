@@ -1,7 +1,7 @@
 rules:
   - id: sift.prompt-injection-risk
     message: |
-      [Prompt Injection] User input is passed directly to an LLM API call.
+      [LLM Review] LLM API call detected; review how untrusted input is isolated.
       Separate user input from system instructions in the prompt.
     severity: WARNING
     languages:
@@ -10,7 +10,7 @@ rules:
       - typescript
       - go
     patterns:
-      - pattern-regex: (\.chat\.completions\.create|\.messages\.create|\.invoke|\.run|\.generate\()
+      - pattern-regex: (\.chat\.completions\.create\s*\(|\.messages\.create\s*\()
     metadata:
       category: security
       cwe: "CWE-77"

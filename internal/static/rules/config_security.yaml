@@ -24,7 +24,7 @@ rules:
       - python
       - javascript
     patterns:
-      - pattern-regex: \.env
+      - pattern-regex: \.env\b
     metadata:
       category: config-security
 

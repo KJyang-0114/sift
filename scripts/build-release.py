@@ -5,6 +5,7 @@ import concurrent.futures
 import datetime
 import hashlib
 import os
+import re
 from pathlib import Path
 import subprocess
 import tarfile
@@ -17,6 +18,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--version', required=True)
     args = parser.parse_args()
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args.version):
+        parser.error("version must be MAJOR.MINOR.PATCH")
     commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     date = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     out = ROOT / 'dist' / args.version
