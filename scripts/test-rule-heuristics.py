@@ -21,25 +21,25 @@ class RuleRegressionTests(unittest.TestCase):
         rule = pattern('command_injection.yaml')
         for safe in ['import subprocess', 'subprocess.run(["go", "build"], check=True)', 'child_process.execFile("tool", args)']:
             self.assertIsNone(rule.search(safe), safe)
-        for candidate in ['os.system(command)', 'subprocess.run(command, shell=True)', 'child_process.exec(command)', 'shell_exec($command)']:
+        for candidate in ['os.system(command)', 'subprocess.run(command, shell=True)', 'child_process.exec(command)', 'shell_exec($command)']:  # nosemgrep -- inert regex fixture string; never executed
             self.assertIsNotNone(rule.search(candidate), candidate)
 
     def test_llm_calls(self):
         rule = pattern('prompt_injection.yaml')
         for safe in ['pool.run()', 'subprocess.run(args)', 'client.invoke()']:
             self.assertIsNone(rule.search(safe), safe)
-        self.assertIsNotNone(rule.search('client.chat.completions.create(messages=messages)'))
-        self.assertIsNotNone(rule.search('client.messages.create(messages=messages)'))
+        self.assertIsNotNone(rule.search('client.chat.completions.create(messages=messages)'))  # nosemgrep -- inert regex fixture string; never executed
+        self.assertIsNotNone(rule.search('client.messages.create(messages=messages)'))  # nosemgrep -- inert regex fixture string; never executed
 
     def test_environment_file(self):
         rule = pattern('config_security.yaml', 1)
         self.assertIsNone(rule.search('os.environ'))
-        self.assertIsNotNone(rule.search('".env"'))
+        self.assertIsNotNone(rule.search('".env"'))  # nosemgrep -- inert regex fixture string; never executed
 
     def test_file_open(self):
         rule = pattern('path_traversal.yaml')
         self.assertIsNone(rule.search('tarfile.open(archive)'))
-        self.assertIsNotNone(rule.search('open(user_path)'))
+        self.assertIsNotNone(rule.search('open(user_path)'))  # nosemgrep -- inert regex fixture string; never executed
 
 
 if __name__ == '__main__':
