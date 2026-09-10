@@ -3,6 +3,7 @@ package report
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/KJyang-0114/sift/internal/core"
 )
@@ -85,13 +86,13 @@ type sarifDocument struct {
 }
 
 // RenderSARIF outputs the report in SARIF 2.1.0 format.
-func RenderSARIF(findings []core.Finding, diagnostics []core.Diagnostic, target string) {
+func RenderSARIF(w io.Writer, findings []core.Finding, diagnostics []core.Diagnostic, target string) error {
 	out, err := encodeSARIF(findings, diagnostics)
 	if err != nil {
-		fmt.Printf("{\"error\":%q}\n", err.Error())
-		return
+		return err
 	}
-	fmt.Println(string(out))
+	_, err = fmt.Fprintln(w, string(out))
+	return err
 }
 
 func encodeSARIF(findings []core.Finding, diagnostics []core.Diagnostic) ([]byte, error) {

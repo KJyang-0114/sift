@@ -3,6 +3,7 @@ package static
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -62,50 +63,27 @@ func findSemgrep() (string, error) {
 	return "", fmt.Errorf("semgrep not found")
 }
 
-// EnsureInstalled checks if semgrep is available, and auto-installs if not.
+// EnsureInstalled locates Semgrep without modifying the host environment.
 func EnsureInstalled() (string, error) {
-	if path, err := findSemgrep(); err == nil {
-		return path, nil
+	path, err := findSemgrep()
+	if err != nil {
+		return "", fmt.Errorf("%w; install Semgrep before scanning (pip install semgrep)", err)
 	}
-
-	fmt.Fprintln(os.Stderr, "  ⚡ semgrep not installed, auto-installing...")
-
-	// Try pip install
-	pipCmds := []string{"pip3", "pip"}
-	var installErr error
-	for _, pip := range pipCmds {
-		if _, err := exec.LookPath(pip); err == nil {
-			cmd := exec.Command(pip, "install", "semgrep")
-			cmd.Stdout = os.Stderr
-			cmd.Stderr = os.Stderr
-			installErr = cmd.Run()
-			if installErr == nil {
-				if path, err := findSemgrep(); err == nil {
-					return path, nil
-				}
-			}
-		}
-	}
-
-	// Try brew (macOS)
-	if _, err := exec.LookPath("brew"); err == nil {
-		cmd := exec.Command("brew", "install", "semgrep")
-		cmd.Stdout = os.Stderr
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err == nil {
-			if path, err := findSemgrep(); err == nil {
-				return path, nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("unable to auto-install semgrep: %w. "+
-		"Please install manually: pip3 install semgrep or brew install semgrep", installErr)
+	return path, nil
 }
 
 // Analyze runs Semgrep for the resolved request targets.
 func (s *SemgrepAnalyzer) Analyze(ctx context.Context, request core.ScanRequest) core.AnalysisResult {
 	result := core.AnalysisResult{Findings: []core.Finding{}, Diagnostics: []core.Diagnostic{}}
+	if s.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.timeout)
+		defer cancel()
+	}
+	if err := ctx.Err(); err != nil {
+		result.Diagnostics = append(result.Diagnostics, analyzerDiagnostic("semgrep.cancelled", err))
+		return result
+	}
 	semgrepPath, err := EnsureInstalled()
 	if err != nil {
 		result.Diagnostics = append(result.Diagnostics, analyzerDiagnostic("semgrep.unavailable", err))
@@ -119,8 +97,6 @@ func (s *SemgrepAnalyzer) Analyze(ctx context.Context, request core.ScanRequest)
 		return result
 	}
 	defer os.RemoveAll(ruleDir)
-
-	start := time.Now()
 
 	// Execute semgrep (exclude third-party dependency directories to reduce noise)
 	args := []string{
@@ -141,28 +117,62 @@ func (s *SemgrepAnalyzer) Analyze(ctx context.Context, request core.ScanRequest)
 	args = append(args, request.AbsoluteTargets()...)
 
 	cmd := exec.CommandContext(ctx, semgrepPath, args...)
-	cmd.Stderr = os.Stderr
-
-	output, err := cmd.Output()
-	if err != nil {
-		if ctx.Err() != nil {
-			result.Diagnostics = append(result.Diagnostics, core.Diagnostic{
-				Kind: core.DiagnosticAnalyzer, Severity: core.DiagnosticError,
-				Code: "semgrep.cancelled", Source: s.Name(), Message: ctx.Err().Error(), Cause: ctx.Err(),
-			})
-			return result
-		}
-		// semgrep returns non-zero when issues are found, but still outputs JSON
-		if output == nil {
-			result.Diagnostics = append(result.Diagnostics, analyzerDiagnostic("semgrep.execution", err))
-			return result
+	cmd.Dir = request.Root()
+	// Both streams are bounded. Stderr becomes a diagnostic instead of bypassing
+	// the selected report format; output overflow must not become a clean scan.
+	stdout := &boundedOutput{limit: 32 * 1024 * 1024}
+	stderr := &boundedOutput{limit: core.MaxEvidenceSnippetBytes}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	cmd.WaitDelay = time.Second
+	runErr := cmd.Run()
+	if stdout.truncated {
+		result.Diagnostics = append(result.Diagnostics, analyzerDiagnostic("semgrep.output-limit", fmt.Errorf("Semgrep output exceeded %d bytes", stdout.limit)))
+	} else if stdout.buffer.Len() > 0 {
+		result.Findings, result.Diagnostics = parseSemgrepOutput([]byte(stdout.buffer.String()), request)
+	} else if runErr == nil {
+		result.Diagnostics = append(result.Diagnostics, analyzerDiagnostic("semgrep.invalid-output", fmt.Errorf("Semgrep returned no JSON report")))
+	}
+	if ctx.Err() != nil {
+		result.Diagnostics = append(result.Diagnostics, analyzerDiagnostic("semgrep.cancelled", ctx.Err()))
+	} else if runErr != nil {
+		var exitErr *exec.ExitError
+		// Semgrep's documented exit 1 denotes findings only when valid findings
+		// accompany it. All other failures retain any successfully parsed results.
+		findingsExit := errors.As(runErr, &exitErr) && exitErr.ExitCode() == 1 && len(result.Findings) > 0
+		if !findingsExit {
+			detail := strings.TrimSpace(stderr.buffer.String())
+			detail = strings.ReplaceAll(detail, request.Root(), "<scan-root>")
+			detail = strings.ReplaceAll(detail, ruleDir, "<rules>")
+			if stderr.truncated {
+				detail += " [truncated]"
+			}
+			message := fmt.Errorf("Semgrep execution failed: %w", runErr)
+			if detail != "" {
+				message = fmt.Errorf("%w: %s", message, detail)
+			}
+			result.Diagnostics = append(result.Diagnostics, analyzerDiagnostic("semgrep.execution", message))
 		}
 	}
-
-	result.Findings, result.Diagnostics = parseSemgrepOutput(output, request)
-
-	_ = time.Since(start)
 	return result
+}
+
+// boundedOutput consumes all writes while retaining only a fixed-size prefix.
+type boundedOutput struct {
+	buffer    strings.Builder
+	limit     int
+	truncated bool
+}
+
+func (b *boundedOutput) Write(p []byte) (int, error) {
+	count := len(p)
+	remaining := b.limit - b.buffer.Len()
+	if len(p) > remaining {
+		p = p[:remaining]
+		b.truncated = true
+	}
+	_, _ = b.buffer.Write(p)
+	return count, nil
 }
 
 func analyzerDiagnostic(code string, err error) core.Diagnostic {
@@ -267,8 +277,30 @@ func parseSemgrepOutput(output []byte, request core.ScanRequest) ([]core.Finding
 		return []core.Finding{}, []core.Diagnostic{analyzerDiagnostic("semgrep.invalid-output", err)}
 	}
 
+	if result.Results == nil {
+		return []core.Finding{}, []core.Diagnostic{analyzerDiagnostic("semgrep.invalid-output", fmt.Errorf("Semgrep JSON report is missing a results array"))}
+	}
 	findings := []core.Finding{}
 	diagnostics := []core.Diagnostic{}
+	for _, problem := range result.Errors {
+		// Semgrep can report skipped/partially parsed files as warnings with exit 0.
+		// Any entry in errors means Sift cannot claim complete analysis.
+		message := strings.TrimSpace(problem.Message)
+		if message == "" {
+			message = fmt.Sprintf("Semgrep reported %s error %d", problem.Level, problem.Code)
+		}
+		message = strings.ReplaceAll(message, request.Root(), "<scan-root>")
+		if len(message) > core.MaxEvidenceSnippetBytes {
+			message = message[:core.MaxEvidenceSnippetBytes]
+		}
+		diagnostic := analyzerDiagnostic(fmt.Sprintf("semgrep.error.%d", problem.Code), errors.New(message))
+		if problem.Path != "" {
+			if path, err := request.RelativePath(problem.Path); err == nil {
+				diagnostic.Path = path
+			}
+		}
+		diagnostics = append(diagnostics, diagnostic)
+	}
 	for _, r := range result.Results {
 		severity := mapSemgrepSeverity(r.Extra.Severity)
 		relativePath, err := request.RelativePath(r.Path)

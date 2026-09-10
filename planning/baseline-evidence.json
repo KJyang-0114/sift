@@ -1,0 +1,42 @@
+{
+  "commit": "84ce40d6db9b067a27feffeb81695dff1dece741",
+  "method": "CLI with fake local Semgrep; offline LLM; dependency-free temporary target; no actual vulnerability detection benchmark",
+  "cases": [
+    {
+      "case": "analyzer_failure",
+      "exit_code": 0,
+      "stdout": "{\n  \"schema_version\": \"2\",\n  \"tool\": \"sift\",\n  \"version\": \"0.2\",\n  \"target\": \"target\",\n  \"timestamp\": \"2026-09-05T19:57:03+08:00\",\n  \"duration\": \"0.37s\",\n  \"summary\": {\n    \"total\": 0,\n    \"critical\": 0,\n    \"high\": 0,\n    \"medium\": 0,\n    \"low\": 0,\n    \"info\": 0\n  },\n  \"findings\": [],\n  \"diagnostics\": [\n    {\n      \"kind\": \"analyzer\",\n      \"severity\": \"error\",\n      \"code\": \"semgrep.invalid-output\",\n      \"source\": \"semgrep\",\n      \"message\": \"unexpected end of JSON input\"\n    }\n  ]\n}\n",
+      "stderr": "fixture analyzer failure\n  ⚠️  semgrep [semgrep.invalid-output]: unexpected end of JSON input\n",
+      "valid_json": true
+    },
+    {
+      "case": "semgrep_errors_array",
+      "exit_code": 0,
+      "stdout": "{\n  \"schema_version\": \"2\",\n  \"tool\": \"sift\",\n  \"version\": \"0.2\",\n  \"target\": \"target\",\n  \"timestamp\": \"2026-09-05T19:57:03+08:00\",\n  \"duration\": \"0.01s\",\n  \"summary\": {\n    \"total\": 0,\n    \"critical\": 0,\n    \"high\": 0,\n    \"medium\": 0,\n    \"low\": 0,\n    \"info\": 0\n  },\n  \"findings\": [],\n  \"diagnostics\": []\n}\n",
+      "stderr": "",
+      "valid_json": true
+    },
+    {
+      "case": "critical_finding",
+      "exit_code": 0,
+      "stdout": "{\n  \"schema_version\": \"2\",\n  \"tool\": \"sift\",\n  \"version\": \"0.2\",\n  \"target\": \"target\",\n  \"timestamp\": \"2026-09-05T19:57:03+08:00\",\n  \"duration\": \"0.01s\",\n  \"summary\": {\n    \"total\": 1,\n    \"critical\": 1,\n    \"high\": 0,\n    \"medium\": 0,\n    \"low\": 0,\n    \"info\": 0\n  },\n  \"findings\": [\n    {\n      \"schema_version\": \"2\",\n      \"id\": \"semgrep/fixture.rule/6665e47a4f53a94b\",\n      \"fingerprint\": \"sha256:6665e47a4f53a94b178d30199ec46c85c6fc8af72eaddf707b83be696b25c4f7\",\n      \"source\": \"semgrep\",\n      \"rule\": \"fixture.rule\",\n      \"message\": \"Fixture finding\",\n      \"severity\": \"critical\",\n      \"category\": \"security\",\n      \"confidence\": \"high\",\n      \"location\": {\n        \"path\": \"demo.py\",\n        \"line\": 1,\n        \"column\": 1,\n        \"end_line\": 1,\n        \"end_column\": 5\n      },\n      \"related_locations\": [],\n      \"evidence\": [\n        {\n          \"kind\": \"code\",\n          \"snippet\": \"print(1)\"\n        }\n      ],\n      \"remediation\": \"Review the matched data flow and apply the remediation for this Semgrep rule.\",\n      \"suppression\": {\n        \"suppressed\": false\n      }\n    }\n  ],\n  \"diagnostics\": []\n}\n",
+      "stderr": "",
+      "valid_json": true
+    },
+    {
+      "case": "explicit_missing_config",
+      "exit_code": 0,
+      "stdout": "{\n  \"schema_version\": \"2\",\n  \"tool\": \"sift\",\n  \"version\": \"0.2\",\n  \"target\": \"target\",\n  \"timestamp\": \"2026-09-05T19:57:03+08:00\",\n  \"duration\": \"0.01s\",\n  \"summary\": {\n    \"total\": 0,\n    \"critical\": 0,\n    \"high\": 0,\n    \"medium\": 0,\n    \"low\": 0,\n    \"info\": 0\n  },\n  \"findings\": [],\n  \"diagnostics\": []\n}\n",
+      "stderr": "",
+      "valid_json": true
+    },
+    {
+      "case": "clean_diff_json",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "valid_json": false
+    }
+  ],
+  "cache_after_scans": "{}"
+}

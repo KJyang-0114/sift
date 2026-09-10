@@ -1,9 +1,12 @@
 package report
 
 import (
+	"fmt"
+	"io"
+	"time"
+
 	"github.com/KJyang-0114/sift/internal/config"
 	"github.com/KJyang-0114/sift/internal/core"
-	"time"
 )
 
 // Engine manages report rendering for all output formats.
@@ -17,15 +20,25 @@ func NewEngine(cfg *config.Config) *Engine {
 }
 
 // Render outputs the report in the specified format.
-func (e *Engine) Render(findings []core.Finding, diagnostics []core.Diagnostic, target string, duration time.Duration, format string) {
+func (e *Engine) Render(w io.Writer, findings []core.Finding, diagnostics []core.Diagnostic, target string, duration time.Duration, format string) error {
 	switch format {
 	case "json":
-		RenderJSON(findings, diagnostics, target, duration)
+		return RenderJSON(w, findings, diagnostics, target, duration)
 	case "llm":
-		RenderLLM(findings, target)
+		return RenderLLM(w, findings, diagnostics, target)
 	case "sarif":
-		RenderSARIF(findings, diagnostics, target)
-	default:
-		RenderTerminal(findings, target, duration)
+		return RenderSARIF(w, findings, diagnostics, target)
+	case "terminal":
+		return RenderTerminal(w, findings, diagnostics, target, duration, e.cfg.Output.Color)
 	}
+	return fmt.Errorf("unsupported output format %q", format)
+}
+
+// ValidFormat prevents invalid configuration from starting a scan.
+func ValidFormat(format string) bool {
+	switch format {
+	case "terminal", "json", "sarif", "llm":
+		return true
+	}
+	return false
 }

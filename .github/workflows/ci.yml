@@ -3,7 +3,8 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, "codex/scan-result-reliability"]
+    tags: ["v*"]
 
 permissions:
   contents: read
@@ -33,6 +34,9 @@ jobs:
 
       - name: Check formatting
         run: test -z "$(gofmt -l $(find . -name '*.go' -not -path './vendor/*'))"
+
+      - name: Rule heuristic regressions
+        run: python3 scripts/test-rule-heuristics.py
 
       - name: Vet
         run: go vet ./...
@@ -64,6 +68,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Test platform filesystem and embedded rules
+        run: go test ./internal/securepath ./internal/static ./internal/agent ./internal/cmd -count=1
 
       - name: Build
         run: go build ./cmd/sift/

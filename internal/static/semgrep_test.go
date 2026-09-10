@@ -3,6 +3,7 @@ package static
 import (
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/KJyang-0114/sift/internal/core"
@@ -57,6 +58,60 @@ func TestParseSemgrepOutputBuildsFindingV2(t *testing.T) {
 	}
 }
 
+func TestParseSemgrepPreservesErrorsAndSuccessfulFindings(t *testing.T) {
+	request, err := core.NewScanRequest(t.TempDir(), []string{"."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := []byte(`{"results":[{"check_id":"fixture","path":"app.py","start":{"line":1,"col":1},"end":{"line":1,"col":2},"extra":{"message":"kept","severity":"WARNING","lines":"x"}}],"errors":[{"code":3,"level":"warn","message":"could not parse file","path":"app.py"}]}`)
+	findings, diagnostics := parseSemgrepOutput(output, request)
+	if len(findings) != 1 || len(diagnostics) != 1 || diagnostics[0].Severity != core.DiagnosticError || diagnostics[0].Code != "semgrep.error.3" || diagnostics[0].Path != "app.py" {
+		t.Fatalf("findings=%#v diagnostics=%#v", findings, diagnostics)
+	}
+}
+
+func TestParseSemgrepRejectsMissingReport(t *testing.T) {
+	request, err := core.NewScanRequest(t.TempDir(), []string{"."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range []string{"", "garbage", "null", "{}", `{"results":null}`} {
+		findings, diagnostics := parseSemgrepOutput([]byte(output), request)
+		if len(findings) != 0 || len(diagnostics) != 1 || diagnostics[0].Code != "semgrep.invalid-output" {
+			t.Fatalf("output=%q findings=%#v diagnostics=%#v", output, findings, diagnostics)
+		}
+	}
+}
+
+func TestBoundedOutputConsumesOverflowWithoutGrowing(t *testing.T) {
+	buffer := &boundedOutput{limit: 8}
+	for _, text := range []string{"first", " more text", "ignored"} {
+		n, err := buffer.Write([]byte(text))
+		if n != len(text) || err != nil {
+			t.Fatalf("write=%d, %v", n, err)
+		}
+	}
+	if buffer.buffer.String() != "first mo" || !buffer.truncated {
+		t.Fatalf("buffer=%q truncated=%v", buffer.buffer.String(), buffer.truncated)
+	}
+}
+
+func TestSemgrepDiagnosticBoundsMessageAndHidesRoot(t *testing.T) {
+	root := t.TempDir()
+	request, err := core.NewScanRequest(root, []string{"."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(map[string]any{"results": []any{}, "errors": []any{map[string]any{"code": 2, "message": root + strings.Repeat("x", 4096), "path": "../outside.py"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, diagnostics := parseSemgrepOutput(data, request)
+	if len(diagnostics) != 1 || len(diagnostics[0].Message) > core.MaxEvidenceSnippetBytes || strings.Contains(diagnostics[0].Message, root) || diagnostics[0].Path != "" {
+		t.Fatalf("diagnostics=%#v", diagnostics)
+	}
+}
+
 func TestParseSemgrepOutputRejectsEscapingLocation(t *testing.T) {
 	root := t.TempDir()
 	request, err := core.NewScanRequest(root, []string{"."})
@@ -85,5 +140,16 @@ func TestParseSemgrepOutputRejectsEscapingLocation(t *testing.T) {
 	}
 	if len(diagnostics) != 1 || diagnostics[0].Kind != core.DiagnosticTarget {
 		t.Fatalf("diagnostics = %#v, want one target diagnostic", diagnostics)
+	}
+}
+
+func TestEmbeddedRulesLoadOnEveryPlatform(t *testing.T) {
+	if len(embeddedRules) == 0 {
+		t.Fatal("embedded rule bundle is empty")
+	}
+	for name, rule := range embeddedRules {
+		if rule == "" {
+			t.Fatalf("empty embedded rule %s", name)
+		}
 	}
 }

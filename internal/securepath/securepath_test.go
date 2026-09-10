@@ -1,10 +1,67 @@
 package securepath
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestRelativePathsUseBaseNotWorkingDirectory(t *testing.T) {
+	base := t.TempDir()
+	t.Chdir(t.TempDir())
+	for _, name := range []string{"file.txt", "..valid.txt"} {
+		if err := WriteFile(base, name, []byte("safe"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		data, err := ReadFile(base, name)
+		if err != nil || string(data) != "safe" {
+			t.Fatalf("read %s: %q, %v", name, data, err)
+		}
+		if _, err := ValidatePath(base, name); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestSymlinkEscapesAreRejected(t *testing.T) {
+	base, outside := t.TempDir(), t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret"), []byte("unchanged"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(base, "escape")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	for _, name := range []string{"escape/secret", "escape/new", "escape/newdir/new"} {
+		if _, err := ValidatePath(base, name); err == nil {
+			t.Fatalf("validated escape %s", name)
+		}
+		if _, err := ReadFile(base, name); err == nil {
+			t.Fatalf("read escape %s", name)
+		}
+		if err := WriteFile(base, name, []byte("changed"), 0o600); err == nil {
+			t.Fatalf("wrote escape %s", name)
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(outside, "secret"))
+	if err != nil || string(data) != "unchanged" {
+		t.Fatalf("outside file modified: %q, %v", data, err)
+	}
+}
+
+func TestRelativeInternalSymlinkWorks(t *testing.T) {
+	base := t.TempDir()
+	if err := WriteFile(base, "real", []byte("safe"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("real", filepath.Join(base, "link")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	data, err := ReadFile(base, "link")
+	if err != nil || string(data) != "safe" {
+		t.Fatalf("internal link: %q, %v", data, err)
+	}
+}
 
 func TestValidatePathAcceptsAbsolutePathInsideBase(t *testing.T) {
 	base := t.TempDir()

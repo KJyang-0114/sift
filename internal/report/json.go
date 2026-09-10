@@ -3,6 +3,7 @@ package report
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 
 type jsonReport struct {
 	SchemaVersion string            `json:"schema_version"`
+	Status        string            `json:"status"`
 	Tool          string            `json:"tool"`
 	Version       string            `json:"version"`
 	Target        string            `json:"target"`
@@ -31,13 +33,13 @@ type jsonSummary struct {
 }
 
 // RenderJSON outputs the scan report in JSON format.
-func RenderJSON(findings []core.Finding, diagnostics []core.Diagnostic, target string, duration time.Duration) {
+func RenderJSON(w io.Writer, findings []core.Finding, diagnostics []core.Diagnostic, target string, duration time.Duration) error {
 	out, err := encodeJSON(findings, diagnostics, target, duration, time.Now())
 	if err != nil {
-		fmt.Printf("{\"error\":%q}\n", err.Error())
-		return
+		return err
 	}
-	fmt.Println(string(out))
+	_, err = fmt.Fprintln(w, string(out))
+	return err
 }
 
 func encodeJSON(findings []core.Finding, diagnostics []core.Diagnostic, target string, duration time.Duration, now time.Time) ([]byte, error) {
@@ -45,6 +47,7 @@ func encodeJSON(findings []core.Finding, diagnostics []core.Diagnostic, target s
 
 	report := jsonReport{
 		SchemaVersion: core.FindingSchemaVersion,
+		Status:        (core.AnalysisResult{Diagnostics: diagnostics}).Status(),
 		Tool:          "sift",
 		Version:       "0.2",
 		Target:        safeDisplayTarget(target),

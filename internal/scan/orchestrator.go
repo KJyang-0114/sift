@@ -3,6 +3,7 @@ package scan
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,10 +27,9 @@ type Orchestrator struct {
 	reporters        *report.Engine
 	lastFindings     []core.Finding
 	lastDiagnostics  []core.Diagnostic
-	fileCache        *cache.FileCache
-	dbStore          *store.Store
 	pool             *WorkerPool
 	diffRef          string // non-empty when diff mode is active
+	initErr          error
 }
 
 // SetDiffMode enables diff mode with the given git ref, scanning only git-changed files.
@@ -47,22 +47,23 @@ func NewOrchestrator(cfg *config.Config) *Orchestrator {
 
 	staticAnalyzers := []core.Analyzer{semgrep, pkgVerifier}
 	dynamicAnalyzers := []core.Analyzer{}
+	var initErr error
 
 	// If LLM is configured, add semantic analysis and test generation
-	if cfg.LLM.Provider != config.ProviderOffline && cfg.LLM.APIKey != "" {
+	if cfg.LLM.Provider != config.ProviderOffline && (cfg.LLM.APIKey != "" || cfg.LLM.Provider == config.ProviderOllama) {
 		if sa, err := agent.NewSemanticAnalyzer(cfg); err == nil {
 			staticAnalyzers = append(staticAnalyzers, sa)
-		}
-		if tg, err := agent.NewTestGenerator(cfg); err == nil {
-			dynamicAnalyzers = append(dynamicAnalyzers, tg)
+		} else {
+			initErr = fmt.Errorf("initialize semantic analyzer: %w", err)
 		}
 	}
-
-	// Enterprise: initialize cache (incremental scan)
-	fc, _ := cache.NewFileCache(".")
-
-	// Enterprise: initialize SQLite persistence
-	dbStore, _ := store.NewStore(".")
+	if cfg.Execution.Enabled || cfg.Execution.Generate {
+		if tg, err := agent.NewTestGenerator(cfg); err == nil {
+			dynamicAnalyzers = append(dynamicAnalyzers, tg)
+		} else if initErr == nil {
+			initErr = fmt.Errorf("initialize test generator: %w", err)
+		}
+	}
 
 	// Enterprise: Worker Pool (controls concurrency, avoids API rate limits)
 	pool := NewWorkerPool(cfg.Scan.Concurrency, time.Duration(cfg.Scan.Timeout)*time.Second)
@@ -72,9 +73,8 @@ func NewOrchestrator(cfg *config.Config) *Orchestrator {
 		staticAnalyzers:  staticAnalyzers,
 		dynamicAnalyzers: dynamicAnalyzers,
 		reporters:        report.NewEngine(cfg),
-		fileCache:        fc,
-		dbStore:          dbStore,
 		pool:             pool,
+		initErr:          initErr,
 	}
 }
 
@@ -83,97 +83,100 @@ func (o *Orchestrator) Run(target string, format string) error {
 	return o.RunContext(context.Background(), target, format)
 }
 
-// RunContext executes the full scan workflow with cancellation.
+// RunContext executes the scan and renders a report to standard output.
 func (o *Orchestrator) RunContext(ctx context.Context, target string, format string) error {
-	root, targets := scanRootAndTargets(target)
+	return o.RunTo(ctx, target, format, os.Stdout)
+}
 
-	verbose := format != "json" && format != "sarif"
-
-	// diff mode: only scan git-changed files
-	if o.diffRef != "" {
-		changed, err := gitChangedFiles(root, o.diffRef)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "  ⚠️  unable to get git diff: %v\n", err)
-			// fall through to full scan
-		} else if len(changed) == 0 {
-			if verbose {
-				fmt.Println("  ✅ no changed files to scan")
-			}
-			return nil
-		} else {
-			if verbose {
-				fmt.Printf("  📋 diff mode (ref=%s): %d changed file(s)\n", o.diffRef, len(changed))
-			}
-			targets = changed
-		}
+// RunTo renders partial results before returning their operational error.
+func (o *Orchestrator) RunTo(ctx context.Context, target, format string, out io.Writer) error {
+	if !report.ValidFormat(format) {
+		return &core.OperationError{Kind: core.DiagnosticConfiguration, Err: fmt.Errorf("unsupported output format %q", format)}
 	}
-	request, err := core.NewScanRequest(root, targets)
+	result, err := o.Scan(ctx, target)
 	if err != nil {
-		return fmt.Errorf("create scan request: %w", err)
+		return err
 	}
-
-	if verbose {
-		fmt.Printf("  🔍 Sift scanning: %s\n\n", root)
+	if err := o.reporters.Render(out, result.Findings, result.Diagnostics, result.Target, result.Duration, format); err != nil {
+		return &core.OperationError{Kind: core.DiagnosticInternal, Err: fmt.Errorf("write %s report: %w", format, err)}
 	}
+	return result.Err()
+}
 
+// Scan collects results without rendering output or terminating the process.
+func (o *Orchestrator) Scan(ctx context.Context, target string) (core.ScanResult, error) {
 	start := time.Now()
-	allFindings := []core.Finding{}
-	allDiagnostics := []core.Diagnostic{}
-
-	// Phase 1: Static Analysis (Semgrep + package verification + LLM semantic analysis)
-	if verbose {
-		fmt.Println("  ── Phase 1: Static Analysis ──")
+	o.lastFindings = nil
+	o.lastDiagnostics = nil
+	result := core.ScanResult{AnalysisResult: core.AnalysisResult{Findings: []core.Finding{}, Diagnostics: []core.Diagnostic{}}}
+	if o.initErr != nil {
+		return result, &core.OperationError{Kind: core.DiagnosticConfiguration, Err: o.initErr}
 	}
-	results := o.runAnalyzers(ctx, o.staticAnalyzers, request)
-	for _, r := range results {
-		for _, diagnostic := range r.Diagnostics {
-			fmt.Fprintf(os.Stderr, "  ⚠️  %s [%s]: %s\n", r.Analyzer, diagnostic.Code, diagnostic.Message)
-		}
-		allDiagnostics = append(allDiagnostics, r.Diagnostics...)
-		if verbose {
-			fmt.Printf("  ✅ %s: %d issue(s)\n", r.Analyzer, len(r.Findings))
-		}
-		allFindings = append(allFindings, r.Findings...)
+	absolute, err := filepath.Abs(target)
+	if err != nil {
+		return result, &core.OperationError{Kind: core.DiagnosticTarget, Err: fmt.Errorf("resolve target: %w", err)}
 	}
-
-	// Phase 2: Dynamic Testing (sandbox execution, enabled only when LLM is available)
-	if len(o.dynamicAnalyzers) > 0 {
-		if verbose {
-			fmt.Println()
-			fmt.Println("  ── Phase 2: Dynamic Testing ──")
+	if _, err := os.Stat(absolute); err != nil {
+		return result, &core.OperationError{Kind: core.DiagnosticTarget, Err: fmt.Errorf("read target: %w", err)}
+	}
+	root, targets := scanRootAndTargets(absolute)
+	result.Target = root
+	if o.diffRef != "" {
+		changed, err := gitChangedFiles(ctx, root, o.diffRef, targets)
+		if err != nil {
+			return result, &core.OperationError{Kind: core.DiagnosticTarget, Err: fmt.Errorf("resolve git diff %q: %w", o.diffRef, err)}
 		}
-		dynResults := o.runAnalyzers(ctx, o.dynamicAnalyzers, request)
-		for _, r := range dynResults {
-			for _, diagnostic := range r.Diagnostics {
-				fmt.Fprintf(os.Stderr, "  ⚠️  %s [%s]: %s\n", r.Analyzer, diagnostic.Code, diagnostic.Message)
+		targets = changed
+	}
+	if len(targets) > 0 {
+		request, err := core.NewScanRequest(root, targets)
+		if err != nil {
+			return result, &core.OperationError{Kind: core.DiagnosticTarget, Err: fmt.Errorf("create scan request: %w", err)}
+		}
+		for _, analyzers := range [][]core.Analyzer{o.staticAnalyzers, o.dynamicAnalyzers} {
+			for _, run := range o.runAnalyzers(ctx, analyzers, request) {
+				result.Findings = append(result.Findings, run.Findings...)
+				result.Diagnostics = append(result.Diagnostics, run.Diagnostics...)
 			}
-			allDiagnostics = append(allDiagnostics, r.Diagnostics...)
-			if verbose {
-				fmt.Printf("  ✅ %s: %d issue(s)\n", r.Analyzer, len(r.Findings))
-			}
-			allFindings = append(allFindings, r.Findings...)
 		}
 	}
-
-	if verbose {
-		fmt.Println()
+	// Cancellation must remain visible even when no analyzer job was scheduled.
+	if ctx.Err() != nil && !result.HasErrors() {
+		result.Diagnostics = append(result.Diagnostics, contextDiagnostic("scan", ctx.Err()))
 	}
-
-	// Output report
-	o.lastFindings = allFindings
-	o.lastDiagnostics = allDiagnostics
-
-	// Enterprise: persist to SQLite + cache
-	if o.dbStore != nil {
-		o.dbStore.SaveScan(root, time.Since(start), allFindings, 0)
+	result.Duration = time.Since(start)
+	if len(targets) > 0 {
+		persistScan(&result)
 	}
-	if o.fileCache != nil {
-		o.fileCache.Save()
+	o.lastFindings = append([]core.Finding{}, result.Findings...)
+	o.lastDiagnostics = append([]core.Diagnostic{}, result.Diagnostics...)
+	return result, nil
+}
+
+// Persistence failures do not invalidate completed analysis, but remain visible.
+func persistScan(result *core.ScanResult) {
+	warn := func(code string, err error) {
+		if err != nil {
+			result.Diagnostics = append(result.Diagnostics, core.Diagnostic{
+				Kind: core.DiagnosticIntegration, Severity: core.DiagnosticWarning,
+				Code: code, Source: "scan-history", Message: err.Error(), Cause: err,
+			})
+		}
 	}
-
-	o.reporters.Render(allFindings, allDiagnostics, root, time.Since(start), format)
-
-	return nil
+	database, err := store.NewStore(result.Target)
+	if err != nil {
+		warn("store.open", err)
+	} else {
+		_, err = database.SaveScan(result.Target, result.Duration, result.Findings, 0)
+		warn("store.save", err)
+		warn("store.close", database.Close())
+	}
+	fileCache, err := cache.NewFileCache(result.Target)
+	if err != nil {
+		warn("cache.open", err)
+	} else {
+		warn("cache.save", fileCache.Save())
+	}
 }
 
 // AnalyzerRunResult records one scheduled analyzer invocation.
@@ -236,39 +239,23 @@ func (o *Orchestrator) LastDiagnostics() []core.Diagnostic {
 	return diagnostics
 }
 
-// gitChangedFiles returns the list of files changed relative to the given git ref.
-// If ref is "HEAD", returns both unstaged and staged changes vs HEAD.
-func gitChangedFiles(repoPath, ref string) ([]string, error) {
-	var out []byte
-	var err error
-
-	if ref == "HEAD" {
-		// For HEAD: combine unstaged + staged diff
-		out, err = exec.Command("git", "-C", repoPath, "diff", "--name-only", "HEAD", "--", ".").Output()
-		if err != nil {
-			return nil, err
-		}
-		stagedOut, stagedErr := exec.Command("git", "-C", repoPath, "diff", "--name-only", "--staged", "--", ".").Output()
-		if stagedErr == nil {
-			if len(out) > 0 && len(stagedOut) > 0 {
-				out = append(out, '\n')
-				out = append(out, stagedOut...)
-			} else if len(stagedOut) > 0 {
-				out = stagedOut
-			}
-		}
-	} else {
-		cmd := exec.Command("git", "-C", repoPath, "diff", "--name-only", ref, "--", ".")
-		out, err = cmd.Output()
-		if err != nil {
-			return nil, err
-		}
+// gitChangedFiles returns existing tracked paths changed against the selected commit.
+// NUL delimiters preserve filenames; --relative keeps paths inside the target root.
+func gitChangedFiles(ctx context.Context, repoPath, ref string, targets []string) ([]string, error) {
+	revision, err := exec.CommandContext(ctx, "git", "-C", repoPath, "rev-parse", "--verify", "--end-of-options", ref+"^{commit}").Output()
+	if err != nil {
+		return nil, err
 	}
-	var files []string
-	for _, f := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		f = strings.TrimSpace(f)
-		if f != "" {
-			files = append(files, filepath.ToSlash(f))
+	args := []string{"-C", repoPath, "diff", "--relative", "--name-only", "-z", "--diff-filter=d", strings.TrimSpace(string(revision)), "--"}
+	args = append(args, targets...)
+	out, err := exec.CommandContext(ctx, "git", args...).Output()
+	if err != nil {
+		return nil, err
+	}
+	files := []string{}
+	for _, file := range strings.Split(string(out), "\x00") {
+		if file != "" {
+			files = append(files, filepath.ToSlash(file))
 		}
 	}
 	return files, nil

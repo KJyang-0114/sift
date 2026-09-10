@@ -1,4 +1,16 @@
+> v1.5.0: [Release changes](CHANGELOG.md) · [Migration guide](MIGRATION.md). Generated tests are export-only; host execution is disabled.
+
 # Sift
+
+## スキャン結果の取り扱い
+
+Semgrep は事前にインストールしてください（例：`pip install semgrep`）。スキャン中の自動インストールは行いません。
+
+`scan` の終了コードは `0`（有効な解析が完了）、`2`（引数・設定・対象のエラー）、`3`（解析が一部失敗）、`4`（内部エラー・レポート出力失敗）です。検出結果は現時点では advisory であり、結果だけで CI を失敗させる gate は未実装です。
+
+JSON の `status` は `complete` または `partial`、SARIF は `executionSuccessful` で完了状態を示します。一部失敗しても成功した解析結果を保持し、差分が空でも有効なレポートを出力します。Registry の 401・429・5xx は診断として扱い、存在しないパッケージの検出結果にはしません。
+
+`--config FILE` は指定ファイルを読み込み、存在しない場合はエラーになります。CI は有効なレポートを保存・アップロードしてから終了コードを返してください。詳細は [MIGRATION.md](MIGRATION.md) を参照してください。
 
 > AI 搭載コードセキュリティスキャナ — オープンソース、API キー持参、ワンラインインストール。
 
@@ -140,7 +152,7 @@ sift scan .
 - **幻覚パッケージ検出**：依存パッケージが NPM / PyPI / Cargo レジストリに実在するか検証
 - **LLM 意味解析**：ロジックエラーとプロンプトインジェクションリスクを検出
 - **自動テスト生成**：AST + LLM の二層エッジケーステスト生成
-- **サンドボックス動的実行**：隔離環境でのコード実行とランタイムエラー捕捉
+- **実験的な動的実行**：現在の Orbital はホストプロセスと一時ディレクトリで生成テストを実行します。コンテナ隔離と明示的な実行ポリシーは未実装です。
 - **LLM 直接出力**：`--format llm` で LLM が直接修正できるレポートを生成
 
 ## 設定
@@ -163,13 +175,7 @@ format = "terminal"           # terminal | json | sarif | llm
 color = true
 ```
 
-プロジェクト固有の設定は `.sift.toml` に配置します：
-
-```toml
-[rules]
-ignore = ["vendor/", "node_modules/", "*.pb.go"]
-severity = ["critical", "high", "medium"]
-```
+`sift scan . --config path/to/config.toml` で設定ファイルを指定できます。プロジェクトの `.sift.toml` 自動読み込み、`rules.ignore`、severity policy はまだ接続されていません。
 
 ## ライセンス
 

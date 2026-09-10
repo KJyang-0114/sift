@@ -13,7 +13,7 @@ rules:
       - ruby
       - php
     patterns:
-      - pattern-regex: (os\.system|subprocess|child_process\.exec|shell_exec\()
+      - pattern-regex: (os\.system\s*\(|subprocess\.[A-Za-z_]+\s*\([^\n]*shell\s*=\s*True|child_process\.exec\s*\(|shell_exec\s*\()
     metadata:
       category: security
       cwe: "CWE-78"

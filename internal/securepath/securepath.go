@@ -7,54 +7,87 @@ import (
 	"strings"
 )
 
-// ValidatePath resolves baseDir and path to absolute paths, then verifies that
-// the resolved path lies within baseDir (path traversal protection).
-// Returns the resolved absolute path on success, or an error if traversal is detected.
-func ValidatePath(baseDir, path string) (string, error) {
-	absBase, err := filepath.Abs(baseDir)
+// relativePath interprets relative names against baseDir, never the process cwd.
+func relativePath(baseDir, name string) (string, string, error) {
+	base, err := filepath.Abs(baseDir)
 	if err != nil {
-		return "", fmt.Errorf("securepath: cannot resolve base directory %q: %w", baseDir, err)
+		return "", "", err
 	}
-
-	// Resolve the target path. If it is already absolute, resolve it directly.
-	// If relative, resolve it relative to the base directory.
-	resolved, err := filepath.Abs(path)
-	if err != nil {
-		return "", fmt.Errorf("securepath: cannot resolve path %q: %w", path, err)
+	if name == "" {
+		return "", "", fmt.Errorf("securepath: empty path")
 	}
-
-	// Clean the base directory path to ensure consistent comparison.
-	absBase = filepath.Clean(absBase)
-	resolved = filepath.Clean(resolved)
-
-	// Use filepath.Rel to check if resolved is inside absBase.
-	rel, err := filepath.Rel(absBase, resolved)
-	if err != nil {
-		return "", fmt.Errorf("securepath: path traversal detected: %q is outside base directory %q", path, absBase)
+	if !filepath.IsAbs(name) {
+		name = filepath.Join(base, name)
 	}
-	if strings.HasPrefix(rel, "..") {
-		return "", fmt.Errorf("securepath: path traversal detected: %q resolves outside base directory %q", path, absBase)
+	rel, err := filepath.Rel(base, name)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", "", fmt.Errorf("securepath: path traversal detected: %q is outside base directory %q", name, base)
 	}
-
-	return resolved, nil
+	return base, rel, nil
 }
 
-// ReadFile validates that path is within baseDir, then reads and returns the file contents.
-// Returns an error if path traversal is detected or if the file cannot be read.
-func ReadFile(baseDir, path string) ([]byte, error) {
-	resolved, err := ValidatePath(baseDir, path)
+// ValidatePath checks lexical and symlink containment, including existing parents
+// of a new file. The returned name is not an authority for later filesystem I/O:
+// callers must use rooted operations to avoid symlink replacement races.
+func ValidatePath(baseDir, name string) (string, error) {
+	base, rel, err := relativePath(baseDir, name)
+	if err != nil {
+		return "", err
+	}
+	canonicalBase, err := filepath.EvalSymlinks(base)
+	if err != nil {
+		return "", err
+	}
+	candidate := filepath.Join(base, rel)
+	ancestor := candidate
+	for {
+		_, err := os.Lstat(ancestor)
+		if err == nil {
+			resolved, err := filepath.EvalSymlinks(ancestor)
+			if err != nil {
+				return "", err
+			}
+			if _, _, err := relativePath(canonicalBase, resolved); err != nil {
+				return "", err
+			}
+			return candidate, nil
+		}
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+		parent := filepath.Dir(ancestor)
+		if parent == ancestor {
+			return "", err
+		}
+		ancestor = parent
+	}
+}
+
+// ReadFile uses an OS-rooted operation so links cannot escape between validation
+// and access. Absolute symlinks are rejected, including links back into the root.
+func ReadFile(baseDir, name string) ([]byte, error) {
+	base, rel, err := relativePath(baseDir, name)
 	if err != nil {
 		return nil, err
 	}
-	return os.ReadFile(resolved)
+	root, err := os.OpenRoot(base)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	return root.ReadFile(rel)
 }
 
-// WriteFile validates that path is within baseDir, then writes data to the file.
-// Returns an error if path traversal is detected or if the file cannot be written.
-func WriteFile(baseDir, path string, data []byte, perm os.FileMode) error {
-	resolved, err := ValidatePath(baseDir, path)
+// WriteFile creates or replaces a file without following links outside baseDir.
+func WriteFile(baseDir, name string, data []byte, perm os.FileMode) error {
+	base, rel, err := relativePath(baseDir, name)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(resolved, data, perm)
+	root, err := os.OpenRoot(base)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return root.WriteFile(rel, data, perm)
 }

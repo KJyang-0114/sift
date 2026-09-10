@@ -4,6 +4,7 @@ import (
 	"embed"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 )
 
@@ -23,7 +24,7 @@ func init() {
 		if entry.IsDir() {
 			continue
 		}
-		content, err := rulesFS.ReadFile(filepath.Join("rules", entry.Name()))
+		content, err := rulesFS.ReadFile(path.Join("rules", entry.Name()))
 		if err != nil {
 			continue
 		}

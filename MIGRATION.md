@@ -1,5 +1,136 @@
 # Migration Guide
 
+## Configuration validation follow-up (unreleased)
+
+Both `scan` and `fix` reject invalid timeout, concurrency, sandbox, output format,
+and LLM provider settings before scanning, with exit code 2. Explicit configuration
+files also reject unknown fields; optional default configuration files retain
+their existing unknown-field behavior.
+
+## v1.5.0: generated tests and patch recovery
+
+Generated-test execution is disabled. `[execution] generate = true` exports
+Python tests under `.sift/generated-tests/`; review imports and assertions before
+running them manually. Exported tests are not verified fixes or confirmed defects.
+The default skips generation before any model call. `enabled = true` reports an
+unavailable executor and a partial scan without generating or executing code.
+No container backend or host fallback is included in v1.5.0.
+
+`fix` preserves partial-scan exit code 3 and reports generation/application failures.
+Applied patches are described as applied, not test-verified. Repeated old content
+and substring-only matches are rejected. Existing `.sift.bak` files are never
+overwritten; restore or archive the backup before another automatic change.
+Use `sift fix path/to/file --rollback` to restore one backup without a model key.
+Fix modes are mutually exclusive; a file target uses its parent as the scan root.
+
+Provider `offline` disables LLM calls; package registry lookups still use network.
+Ollama semantic analysis can run without an API key. SHA-256 cache remains a
+component, not a complete incremental analysis engine.
+
+## Scan reliability follow-up (unreleased)
+
+`sift scan` now preserves partial findings and reports operational failures with
+distinct exit codes. Existing automation that assumed every completed process
+returned zero must handle the following contract:
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | Enabled analysis completed. Findings remain advisory. |
+| `1` | Reserved for a future finding policy gate; not emitted by `scan` yet. |
+| `2` | Invalid CLI options, configuration, target, or Git diff reference. |
+| `3` | Analysis is incomplete, including analyzer errors, registry failures, or cancellation during analysis. Successful findings remain in the report. |
+| `4` | Internal failure, including inability to write the report. |
+
+A report write failure takes precedence over partial analysis. Error-severity
+diagnostics make a scan partial; informational and warning diagnostics do not.
+History/cache persistence warnings do not invalidate completed analysis.
+
+### Reports and CI
+
+- JSON adds `status: "complete" | "partial"`. This is an additive field; the
+  Finding schema remains version 2.
+- SARIF uses `invocations[].executionSuccessful: false` for partial analysis.
+- Terminal and LLM reports include status and diagnostics. Zero findings during
+  a partial scan no longer produce a clean-scan claim.
+- An empty tracked Git diff produces a complete, empty report in every format.
+- Semgrep's structured `errors` are retained even when Semgrep exits zero.
+  Warnings inside that array also indicate incomplete analysis. Semgrep exit 1
+  is accepted as a findings-only exit only when a valid report contains findings;
+  other nonzero exits retain parsed findings and add an execution diagnostic.
+- Semgrep stdout is capped at 32 MiB. Failure stderr is capped at 2 KiB and
+  included in the diagnostic; exceeding the stdout cap produces a partial scan.
+- Configured LLM request/parsing failures and empty generated-test responses
+  produce error diagnostics. Analyzer initialization failures return code 2
+  rather than silently omitting the configured analyzer.
+- Renderers return output errors to callers instead of printing fallback JSON.
+
+Capture status without discarding the report:
+
+```sh
+scan_status=0
+sift scan . --format sarif > sift-results.sarif || scan_status=$?
+# Upload the valid report before returning the captured status.
+exit "$scan_status"
+```
+
+The repository workflow now scans once, uploads valid SARIF even for partial
+analysis, and then returns the scan exit code. It does not yet gate on findings.
+
+Semgrep exit semantics follow its [CLI reference](https://docs.semgrep.dev/cli-reference#exit-codes).
+
+### Configuration, targets, and local state
+
+`--config FILE` now selects a required explicit configuration file for `scan`,
+`fix`, and `config`. Missing files fail rather than silently using defaults.
+The current precedence is defaults → selected file → environment → scan flags.
+Project-level `.sift.toml` discovery and layered policy remain future work.
+
+`scan` validates output format, positive timeout/concurrency, and supported sandbox
+before starting. `--quiet` suppresses the terminal report but retains diagnostics;
+JSON, SARIF, and LLM reports remain available under `--quiet`. `--verbose` writes
+a summary to stderr and cannot be combined with `--quiet`.
+
+Git diff uses NUL-delimited paths and respects the selected file/subdirectory.
+It includes tracked staged and unstaged changes against the selected commit,
+excludes deleted and untracked files, and no longer falls back to a full scan
+when the reference is invalid. Full resolver/symlink policy remains in Stage A3.
+
+State is now written under the scan target root (the containing directory for a
+single-file target), rather than the shell's current working directory. Existing
+state in another directory is left in place. The cache is still not used to skip
+analysis; this change does not claim incremental caching is complete.
+
+### Semgrep installation
+
+Scanning no longer runs pip or Homebrew automatically. Install Semgrep explicitly
+before scanning, for example with `pip install semgrep` in an appropriate Python
+environment. Missing Semgrep creates an operational diagnostic and exit code 3.
+
+### Package verification
+
+- Public registry results are classified as exists, missing, or unknown.
+- HTTP 401/403, rate limiting, 5xx responses, transport errors, and malformed Cargo
+  responses are unknown diagnostics, not missing-package findings.
+- Transient transport/429/500/502/503/504 failures retry at most twice. Backoff and
+  Retry-After waits respect cancellation. Retry-After values above the two-second
+  retry budget are returned as unknown without retrying earlier than requested.
+- Missing scoped npm packages and unavailable Go modules are unknown because the
+  public endpoint cannot establish whether a private dependency exists.
+- A confirmed missing public package is a medium-severity advisory. Its message
+  does not claim malware or typosquatting. The existing rule ID is retained for
+  consumers; confidence describes the public not-found response only.
+- Go `require (...)` blocks are now parsed and uppercase module paths use the
+  [Go proxy case encoding](https://go.dev/ref/mod#goproxy-protocol). Replacement,
+  workspace, and custom/private registry resolution remain future work.
+
+### Rollback of this follow-up
+
+Revert this change's application, workflow, and documentation together. Consumers
+may ignore the additive JSON `status` field. No destructive database migration
+is introduced. Reverting restores the old operational behavior, including zero
+exit codes on analyzer failures; account for that in CI policy. Target-root state
+created by this version is not deleted automatically.
+
 ## v0.1 to v0.2 Finding and Analyzer Contracts
 
 Sift v0.2 introduces an intentionally breaking Finding v2 contract. The change adds stable identity, analyzer provenance, confidence, evidence, remediation, typed diagnostics, and safe repository-relative locations.

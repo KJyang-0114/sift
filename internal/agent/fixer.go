@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,10 +24,10 @@ type Fixer struct {
 
 // FixResult is the result of a single fix operation.
 type FixResult struct {
-	Finding core.Finding `json:"finding"`
-	Fixed   bool         `json:"fixed"`
-	Patch   string       `json:"patch,omitempty"`
-	Error   string       `json:"error,omitempty"`
+	Finding   core.Finding `json:"finding"`
+	Generated bool         `json:"generated"`
+	Patch     string       `json:"patch,omitempty"`
+	Error     string       `json:"error,omitempty"`
 }
 
 // NewFixer creates an auto-fixer.
@@ -54,6 +55,11 @@ func (f *Fixer) Name() string {
 // Fix generates fix suggestions for each finding in the list.
 // Returns the fix result for each finding.
 func (f *Fixer) Fix(findings []core.Finding) []FixResult {
+	return f.FixContext(context.Background(), findings)
+}
+
+// FixContext generates suggestions using the caller cancellation context.
+func (f *Fixer) FixContext(ctx context.Context, findings []core.Finding) []FixResult {
 	var results []FixResult
 
 	count := 0
@@ -63,7 +69,8 @@ func (f *Fixer) Fix(findings []core.Finding) []FixResult {
 		}
 
 		result := FixResult{Finding: finding}
-		patch, err := f.generateFix(finding)
+		count++
+		patch, err := f.generateFixContext(ctx, finding)
 		if err != nil {
 			result.Error = err.Error()
 			results = append(results, result)
@@ -71,9 +78,8 @@ func (f *Fixer) Fix(findings []core.Finding) []FixResult {
 		}
 
 		result.Patch = patch
-		result.Fixed = true
+		result.Generated = true
 		results = append(results, result)
-		count++
 	}
 
 	return results
@@ -81,7 +87,7 @@ func (f *Fixer) Fix(findings []core.Finding) []FixResult {
 
 // ApplyFix applies a single fix to a file.
 func (f *Fixer) ApplyFix(result FixResult) error {
-	if !result.Fixed || result.Patch == "" {
+	if !result.Generated || result.Patch == "" {
 		return fmt.Errorf("no fix available to apply")
 	}
 
@@ -91,17 +97,29 @@ func (f *Fixer) ApplyFix(result FixResult) error {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
 
-	// Backup original content
-	backup := string(content)
-	backupPath := result.Finding.Location.Path + ".sift.bak"
-	if err := securepath.WriteFile(f.projectDir, backupPath, content, 0o644); err != nil {
-		_ = err // backup write failure is non-fatal
-	}
-
-	// Apply patch
+	// Validate the patch before creating a backup.
 	patched, err := applyPatch(string(content), result.Patch)
 	if err != nil {
 		return fmt.Errorf("failed to apply fix: %w", err)
+	}
+
+	// Backup original content
+	backup := string(content)
+	backupPath := result.Finding.Location.Path + ".sift.bak"
+	root, err := os.OpenRoot(f.projectDir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	backupFile, err := root.OpenFile(backupPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return fmt.Errorf("create backup (restore or archive existing backup first): %w", err)
+	}
+	_, writeErr := backupFile.Write(content)
+	closeErr := backupFile.Close()
+	if writeErr != nil || closeErr != nil {
+		_ = root.Remove(backupPath)
+		return fmt.Errorf("write backup: %w", errors.Join(writeErr, closeErr))
 	}
 
 	// Write back to file (validated against project directory)
@@ -116,22 +134,27 @@ func (f *Fixer) ApplyFix(result FixResult) error {
 
 // RollbackFix reverts an applied fix.
 func (f *Fixer) RollbackFix(filePath string) error {
+	return RollbackFile(f.projectDir, filePath)
+}
+
+// RollbackFile restores a backup without needing model credentials.
+func RollbackFile(projectDir, filePath string) error {
 	backupPath := filePath + ".sift.bak"
-	backup, err := securepath.ReadFile(f.projectDir, backupPath)
+	backup, err := securepath.ReadFile(projectDir, backupPath)
 	if err != nil {
 		return fmt.Errorf("backup file not found: %s", backupPath)
 	}
 
-	if err := securepath.WriteFile(f.projectDir, filePath, backup, 0o644); err != nil {
+	if err := securepath.WriteFile(projectDir, filePath, backup, 0o644); err != nil {
 		return fmt.Errorf("rollback failed: %w", err)
 	}
 
-	// Remove backup file (validated path)
-	resolvedBackup, err := securepath.ValidatePath(f.projectDir, backupPath)
-	if err == nil {
-		os.Remove(resolvedBackup)
+	root, err := os.OpenRoot(projectDir)
+	if err != nil {
+		return err
 	}
-	return nil
+	defer root.Close()
+	return root.Remove(backupPath)
 }
 
 const fixerSystemPrompt = `You are an expert security engineer fixing code vulnerabilities.
@@ -182,6 +205,10 @@ Generate the exact code fix (old -> new).`
 
 // generateFix uses LLM to generate a fix for a single issue.
 func (f *Fixer) generateFix(finding core.Finding) (string, error) {
+	return f.generateFixContext(context.Background(), finding)
+}
+
+func (f *Fixer) generateFixContext(parent context.Context, finding core.Finding) (string, error) {
 	// Read file content (validated against project directory; 5 lines of context before and after)
 	fileContent, err := securepath.ReadFile(f.projectDir, finding.Location.Path)
 	if err != nil {
@@ -189,11 +216,11 @@ func (f *Fixer) generateFix(finding core.Finding) (string, error) {
 	}
 
 	lines := strings.Split(string(fileContent), "\n")
-	start := max(finding.Location.Line-6, 0)
+	start := min(max(finding.Location.Line-6, 0), len(lines))
 	end := min(finding.Location.Line+5, len(lines))
 	contextLines := strings.Join(lines[start:end], "\n")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 60*time.Second)
 	defer cancel()
 
 	userMsg := fmt.Sprintf(fixerUserTemplate,
@@ -296,89 +323,33 @@ func parseHunks(patch string) []hunk {
 // content. Returns the patched string or an error if no match is found.
 func applySingleHunk(target string, h hunk) (string, error) {
 	if len(h.oldLines) == 0 {
-		return target, fmt.Errorf("hunk has no removal lines to match against")
+		return target, fmt.Errorf("hunk has no removal lines")
 	}
-
-	oldText := strings.Join(h.oldLines, "\n")
-	newText := strings.Join(h.newLines, "\n")
-
-	// Strategy 1: exact substring match (fast path, most common case).
-	if idx := strings.Index(target, oldText); idx >= 0 {
-		matchEnd := idx + len(oldText)
-		// When the match sits at a line boundary, extend to consume
-		// trailing whitespace on the last matched line. This corrects
-		// for LLM responses that strip trailing spaces/tabs that
-		// actually exist in the file on disk.
-		if idx == 0 || target[idx-1] == '\n' {
-			for matchEnd < len(target) && target[matchEnd] != '\n' &&
-				(target[matchEnd] == ' ' || target[matchEnd] == '\t') {
-				matchEnd++
-			}
-		}
-		return target[:idx] + newText + target[matchEnd:], nil
-	}
-
-	// Strategy 2: line-anchored match with trailing-whitespace tolerance.
-	// Walk through the target line by line, verifying each old line
-	// (whitespace-insensitive). The replacement preserves the trailing
-	// newline after the last matched line so the file structure is kept.
-	firstLine := h.oldLines[0]
-	searchFrom := 0
-	for {
-		idx := strings.Index(target[searchFrom:], firstLine)
-		if idx < 0 {
-			break
-		}
-		matchStart := searchFrom + idx
-
-		// First line must sit at a line boundary (avoid matching a
-		// substring mid-word, e.g. "var" inside "varchar").
-		if matchStart > 0 && target[matchStart-1] != '\n' {
-			searchFrom = matchStart + 1
-			continue
-		}
-
-		// Walk through all old lines to verify the match.
-		// pos advances to the start of each successive line;
-		// matchEnd tracks the newline position (or EOF) after the
-		// last matched line so it is preserved in the output.
-		pos := matchStart
-		matchEnd := matchStart
-		allMatch := true
-		for i := 0; i < len(h.oldLines); i++ {
-			expected := strings.TrimRight(h.oldLines[i], " \t")
-			rest := target[pos:]
-			nl := strings.IndexByte(rest, '\n')
-			var actual string
-			if nl >= 0 {
-				actual = rest[:nl]
-				matchEnd = pos + nl // newline position (preserved)
-				pos += nl + 1       // start of next line
-			} else {
-				actual = rest
-				matchEnd = len(target)
-				pos = len(target)
-			}
-			if strings.TrimRight(actual, " \t") != expected {
-				allMatch = false
+	lines := strings.Split(target, "\n")
+	match := -1
+	for i := 0; i+len(h.oldLines) <= len(lines); i++ {
+		equal := true
+		for j, old := range h.oldLines {
+			if strings.TrimRight(lines[i+j], " \t") != strings.TrimRight(old, " \t") {
+				equal = false
 				break
 			}
 		}
-		if allMatch {
-			return target[:matchStart] + newText + target[matchEnd:], nil
-		}
-		searchFrom = matchStart + len(firstLine)
-	}
-
-	// Strategy 3: trailing-whitespace-agnostic oldText match.
-	oldTrimmed := strings.TrimRight(oldText, " \t")
-	if oldTrimmed != oldText {
-		if idx := strings.Index(target, oldTrimmed); idx >= 0 {
-			return target[:idx] + newText + target[idx+len(oldTrimmed):], nil
+		if equal {
+			if match >= 0 {
+				return target, fmt.Errorf("ambiguous old content; refusing to choose between matching locations")
+			}
+			match = i
 		}
 	}
+	if match < 0 {
+		return target, fmt.Errorf("old content not found in file")
+	}
+	updated := append([]string{}, lines[:match]...)
+	updated = append(updated, h.newLines...)
+	updated = append(updated, lines[match+len(h.oldLines):]...)
+	return strings.Join(updated, "\n"), nil
 
-	return target, fmt.Errorf("old content not found in file")
 }
 
 // applyPatch applies a unified-diff patch to the original file content.

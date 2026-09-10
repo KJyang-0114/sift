@@ -1,0 +1,9 @@
+=== RUN   TestPlanningRegistryStatuses
+    planning_probe_test.go:9: HTTP 200: findings=0 diagnostics=0
+    planning_probe_test.go:9: HTTP 404: findings=1 diagnostics=0
+    planning_probe_test.go:9: HTTP 401: findings=1 diagnostics=0
+    planning_probe_test.go:9: HTTP 429: findings=1 diagnostics=0
+    planning_probe_test.go:9: HTTP 500: findings=1 diagnostics=0
+--- PASS: TestPlanningRegistryStatuses (0.00s)
+PASS
+ok  	github.com/KJyang-0114/sift/internal/agent	0.418s

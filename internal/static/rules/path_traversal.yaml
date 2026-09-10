@@ -11,7 +11,7 @@ rules:
       - java
       - php
     patterns:
-      - pattern-regex: (open\(|os\.path\.join\(|fs\.readFile\(|os\.ReadFile\()
+      - pattern-regex: ((?<![\w.])open\(|os\.path\.join\(|fs\.readFile\(|os\.ReadFile\()
     metadata:
       category: security
       cwe: "CWE-22"

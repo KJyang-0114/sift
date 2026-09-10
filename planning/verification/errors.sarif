@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Sift",
+          "rules": []
+        }
+      },
+      "results": [],
+      "invocations": [
+        {
+          "executionSuccessful": false,
+          "toolExecutionNotifications": [
+            {
+              "level": "error",
+              "message": {
+                "text": "fixture parse failure"
+              },
+              "properties": {
+                "code": "semgrep.error.3",
+                "kind": "analyzer",
+                "source": "semgrep"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
