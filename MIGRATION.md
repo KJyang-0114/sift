@@ -18,9 +18,11 @@ advisories. It is enabled by default and sends package names and versions to
 | `kev.unavailable` | Warning diagnostic; findings are kept without exploitation priority |
 | `vulnerability-db.unpinned` | Info diagnostic counting dependencies without exact versions |
 
-Disable with `[vulnerabilities] enabled = false` or `SIFT_VULNERABILITIES=false`
-(for example, air-gapped CI). Explicit config files that previously rejected the
-unknown `[vulnerabilities]` table now accept it.
+Disable OSV lookups with `[vulnerabilities] enabled = false` or
+`SIFT_VULNERABILITIES=false`. This does not make scans fully offline: package
+verification still contacts npm, PyPI, the Go proxy or crates.io, and failed
+registry requests make the scan partial (exit `3`). Explicit config files that
+previously rejected the unknown `[vulnerabilities]` table now accept it.
 
 Rollback: set `SIFT_VULNERABILITIES=false`; no stored data changes.
 

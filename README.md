@@ -1,158 +1,166 @@
-# Sift v1.5
+<h1 align="center">Sift</h1>
 
-Go CLI，用靜態規則、套件驗證與選擇性 LLM 分析檢查程式碼，並輸出 terminal、JSON、SARIF 或 LLM-readable report。
+<p align="center">
+  <strong>The security gate for AI-written code.</strong><br>
+  Scan code and dependencies, block only <em>new</em> high-risk issues in CI,<br>
+  and hand findings back to your coding agent to fix.
+</p>
 
-[繁體中文](./README.zh-Hant.md) · [日本語](./README.ja.md)
+<p align="center">
+  <a href="https://github.com/KJyang-0114/sift/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/KJyang-0114/sift/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/KJyang-0114/sift/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/KJyang-0114/sift"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
+</p>
 
-![Sift architecture](assets/architecture.png)
+<p align="center">
+  <strong>English</strong> · <a href="README.zh-Hant.md">繁體中文</a> · <a href="README.ja.md">日本語</a>
+</p>
 
-## 掃描流程
+<p align="center">
+  <img src="assets/terminal-demo.svg" alt="Sift blocks a new command injection and a vulnerable lodash version while hiding 14 accepted findings" width="820">
+</p>
 
-```text
-CLI target / config / diff ref
-  → Semgrep rules
-  → Package verifier
-  → Optional semantic analyzer
-  → Concurrent orchestration
-  → Terminal / JSON / SARIF / LLM report
-  → SQLite scan history
-```
+## Why Sift
 
-## 主要功能
+- **Catches what assistants get wrong.** 36 embedded Semgrep rules for injection, XSS, SSRF, unsafe deserialization, hard-coded secrets, JWT and session mistakes.
+- **Knows today's CVEs.** Exact lockfile versions are checked against [OSV.dev](https://osv.dev) on every scan. CVEs in the [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) catalog become critical; malicious and hallucinated packages are flagged too.
+- **Adoptable on day one.** A baseline accepts existing findings, so `--fail-on high` blocks only what a change introduces. Moving code does not resurface accepted findings.
+- **Works where you work.** Terminal, GitHub Code Scanning (SARIF), any CI through the Docker image, and Claude Code or pre-commit hooks.
+- **Your keys, your choice.** Static and dependency checks need no API key. LLM analysis is optional: Anthropic, OpenAI, Gemini, OpenRouter, DeepSeek, SiliconFlow, or local Ollama.
 
-- 掃描目錄、單一檔案或 Git diff。
-- 執行 Semgrep 與 dependency package verification。
-- 在設定 provider 後加入 semantic analysis 與 test generation。
-- 以 worker pool 控制 concurrency 與 timeout。
-- 提供 SHA-256 cache 元件；主掃描流程的增量快取仍待接入。
-- 將掃描紀錄與 findings 寫入 SQLite。
+## How it works
 
-## 核心程式
+<p align="center">
+  <img src="assets/how-it-works.svg" alt="Code flows into rules, dependency and optional semantic analyzers, then a baseline and fail-on policy, then out to the terminal, SARIF, JSON or an agent" width="100%">
+</p>
 
-| Analyzer composition | Parallel execution |
-|---|---|
-| ![Analyzer composition](assets/orchestrator-code.png) | ![Parallel analyzers](assets/concurrency-code.png) |
-
-## 實作重點
-
-### Deterministic first
-
-已知 vulnerability class 先交給可重現的 rules。LLM analyzer 用於補充語意判斷，不取代靜態檢查。
-
-### 已知漏洞（CVE）比對
-
-讀取 lockfile 的精確版本（`package-lock.json`、`npm-shrinkwrap.json`、`poetry.lock`、`uv.lock`、`Pipfile.lock`、`requirements*.txt` 的 `==` 版本、`Cargo.lock`、`go.mod`），向 [OSV.dev](https://osv.dev) 查詢 GHSA、PyPA、Go、RustSec 等公開漏洞與 OpenSSF 惡意套件資料。列入 [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)（已確認遭實際利用）的 CVE 一律升為 critical 並標示 `[Known Exploited]`。
-
-- 每次掃描即時查詢，新公布的 advisory 不需更新 Sift 即可命中。
-- 同一漏洞的 GHSA／PYSEC 等別名合併為一筆；修補建議取目前版本所在分支的修正版。
-- 沒有精確版本的依賴不會比對，並以 `vulnerability-db.unpinned` info 提示。
-- 會將套件名稱與版本送到 OSV.dev；設定 `[vulnerabilities] enabled = false` 或 `SIFT_VULNERABILITIES=false` 可關閉。
-- OSV 無法連線時掃描為 partial（exit 3）；KEV 無法取得只產生 warning，findings 仍保留。
-- 比對的是已公開 advisory，不涵蓋尚未揭露的 0-day，也不分析程式是否實際呼叫到有漏洞的函式。
-
-### 無 LLM 模式
-
-provider = "offline" 時不呼叫 LLM；套件驗證與漏洞比對仍會連線 registry／OSV.dev。Ollama 不需要 API key。
-
-### Output formats
-
-Terminal 適合本機閱讀，JSON 適合 automation，SARIF 可接 GitHub Code Scanning，LLM format 可交給後續修復流程。
-
-### Concurrent execution
-
-Analyzer 以 goroutine 並行，結果依原始 index 回填。Worker pool 控制同時執行數量與 timeout。
-
-## 使用方式
-
-不想自行安裝 Semgrep，可直接用 Docker image：`docker run --rm -v "$PWD:/src" ghcr.io/kjyang-0114/sift:latest scan .`。Windows 用 `install.ps1`；GitLab 與其他 CI 見 [docs/ci](docs/ci/README.md)。
+## Quick start
 
 ```bash
 pip install semgrep
-go build -o sift ./cmd/sift
-./sift init
-./sift scan .
-./sift scan --diff=HEAD~1 --format sarif
+curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh | bash
+sift scan .
 ```
 
-掃描不再自動安裝 Semgrep。`--config FILE` 可指定設定檔；缺檔會報錯。
-`--diff` 掃描已追蹤的變更，排除刪除與未追蹤檔案；沒有變更仍輸出有效報告。
-
-| 退出碼 | 意義 |
+| Platform | Install |
 |---|---|
-| `0` | 啟用的分析已完成；未設定 `--fail-on` 時 findings 僅供參考 |
-| `1` | 有未抑制的 finding 達到 `--fail-on` 門檻（優先於 `3`） |
-| `2` | 設定、參數、目標或 diff ref 無效 |
-| `3` | 部分掃描失敗；報告保留已完成的結果與 diagnostics |
-| `4` | 內部或報告寫入失敗 |
+| macOS / Linux | `curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh \| bash` |
+| Windows | `irm https://raw.githubusercontent.com/KJyang-0114/sift/main/install.ps1 \| iex` |
+| Docker (Semgrep included) | `docker run --rm -v "$PWD:/src" ghcr.io/kjyang-0114/sift:latest scan .` |
+| From source (Go 1.26+) | `go install github.com/KJyang-0114/sift/cmd/sift@latest` |
 
-JSON 包含 `status: complete / partial`；SARIF 使用 `executionSuccessful`。
-registry 限流、權限與服務異常列為 diagnostics，不會當成不存在套件。
-CI 應先保存、上傳報告，再回傳掃描退出碼。完整變更見 [MIGRATION.md](MIGRATION.md)。
+The installers verify SHA-256 checksums and accept `SIFT_VERSION` and `SIFT_INSTALL_DIR`. Run `sift init` to configure an optional LLM provider.
 
-### 接上 AI agent
-
-Claude Code Stop hook、pre-commit 與其他 agent 的設定見 [docs/agents.md](docs/agents.md)：agent 改完程式後自動掃描，有新的高風險問題就把報告交回 agent 修正。
-
-### Gate 與 baseline
+## Adopt it in an existing project
 
 ```bash
-# 舊專案：接受現有問題，commit sift-baseline.json
-sift scan . --write-baseline sift-baseline.json
-# 之後只擋新增、高信心的高風險問題；SARIF 寫檔，終端照常顯示
-sift scan . --baseline sift-baseline.json --fail-on high --min-confidence medium \
-  --format sarif --output sift.sarif
+sift scan . --write-baseline sift-baseline.json   # accept what exists today
+git add sift-baseline.json
+sift scan . --baseline sift-baseline.json --fail-on high
 ```
 
-- baseline 以規則、路徑與正規化後的程式內容比對，不看行號；同檔相同內容依出現順序區分。
-- 命中的 finding 不刪除，只標為 suppressed：JSON 的 `summary.active`／`summary.suppressed`、SARIF 的 `suppressions`；終端與 LLM 格式隱藏它們。
-- 可在 baseline 每筆填 `reason`；`--baseline X --write-baseline X` 重新產生時會保留原因。
-- baseline 屬於專案政策，必須位於工作目錄內；`../` 或指向外部的 symlink 會被拒絕。
+Baseline entries match on rule, path and normalized code, not line numbers. Add a `reason` to any entry; refreshing with `--baseline X --write-baseline X` keeps it. Accepted findings stay in JSON and SARIF as suppressed, so the decision remains auditable.
 
-## 驗證
+## Use it in CI
+
+**GitHub Actions** — upload SARIF to Code Scanning, then return the gate result:
+
+```yaml
+name: sift
+on: [pull_request]
+permissions:
+  contents: read
+  security-events: write
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: pip install semgrep
+      - run: curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh | SIFT_INSTALL_DIR="$HOME/.local/bin" bash
+      - name: Run Sift
+        id: scan
+        run: |
+          status=0
+          sift scan . --format sarif --output sift.sarif --baseline sift-baseline.json --fail-on high || status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+      - uses: github/codeql-action/upload-sarif@v4
+        if: ${{ !cancelled() && hashFiles('sift.sarif') != '' }}
+        with:
+          sarif_file: sift.sarif
+      - if: ${{ !cancelled() }}
+        run: exit ${{ steps.scan.outputs.exit_code }}
+```
+
+**GitLab, Jenkins and others** — see [docs/ci](docs/ci/README.md).
+
+## Let your agent fix it
 
 ```bash
-go test ./...
-go build ./cmd/sift
+sift scan . --format llm | claude -p "Fix these issues"
 ```
 
-## 維護與路線圖
+For a closed loop, the [Claude Code Stop hook](docs/agents.md) runs Sift whenever the agent tries to finish and hands new high-risk findings back as its next instruction. It never blocks on partial scans or twice in a row. A [pre-commit hook](docs/agents.md#pre-commit) is available too.
 
-版本變更見 [CHANGELOG.md](CHANGELOG.md)，審查與合併流程見 [docs/REVIEW-WORKFLOW.zh-Hant.md](docs/REVIEW-WORKFLOW.zh-Hant.md)。Sift 本身的安全漏洞請依 [SECURITY.md](SECURITY.md) 私下回報，勿開公開 issue。
+## Commands
 
-## 限制
+| Command | Purpose |
+|---|---|
+| `sift scan [path]` | Scan a directory or file |
+| `--diff[=REF]` | Only tracked changes against a commit (default `HEAD`) |
+| `--format terminal\|json\|sarif\|llm` | Report format |
+| `--output FILE` | Write the report to FILE and still show the terminal report |
+| `--fail-on SEVERITY`, `--min-confidence LEVEL` | Exit `1` when an unsuppressed finding reaches the threshold |
+| `--baseline FILE`, `--write-baseline FILE` | Accept existing findings |
+| `sift fix FILE --dry-run \| --interactive \| --rollback` | LLM-proposed patches with a backup and rollback |
+| `sift init`, `sift config` | Configure and inspect settings |
 
-- 靜態規則與模型判斷都可能產生 false positive。
-- LLM 分析需要自行提供 provider key。
-- 部分 packages 尚未加入行為測試。
-- 掃描結果仍需人工確認 data flow 與實際執行路徑。
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Analysis completed; no finding violates `--fail-on` |
+| `1` | An unsuppressed finding reached `--fail-on` |
+| `2` | Invalid option, configuration, target or diff ref |
+| `3` | Partial analysis; completed findings and diagnostics are still reported |
+| `4` | Internal error or the report could not be written |
+
+The report is always written before the exit code is returned, so CI can upload it first.
+
+## Configuration
+
+`~/.sift/config.toml` (created by `sift init`), or `--config FILE`:
+
+```toml
+[llm]
+provider = "anthropic"   # anthropic | openai | openrouter | ollama | siliconflow | gemini | deepseek | offline
+model = "claude-sonnet-4-6"
+
+[scan]
+timeout = 120
+concurrency = 4
+
+[vulnerabilities]
+enabled = true           # sends package names and versions to OSV.dev
+```
+
+Environment variables: `SIFT_LLM_PROVIDER`, `SIFT_LLM_API_KEY`, `SIFT_LLM_MODEL`, and `SIFT_VULNERABILITIES=false` to skip OSV lookups. Package verification still contacts npm, PyPI, the Go proxy or crates.io; without network access the scan is partial (exit 3).
+
+## Limits
+
+- Rules and model judgments can produce false positives; confirm data flow before acting.
+- Dependency checks match published advisories for exact versions. They do not detect undisclosed 0-days or whether vulnerable code is reachable.
+- `--diff` excludes untracked files. Generated tests are exported for review, never executed on the host.
+
+## Contributing and security
+
+[CHANGELOG](CHANGELOG.md) · [Migration guide](MIGRATION.md) · [Review workflow](docs/REVIEW-WORKFLOW.zh-Hant.md) · Report vulnerabilities in Sift privately via [SECURITY.md](SECURITY.md).
+
+Maintainers release by pushing a `v*` tag with a matching `CHANGELOG.md` section; the workflow publishes binaries, checksums, SBOMs, provenance and the Docker image.
 
 ## License
 
-詳見 [LICENSE](LICENSE)。
-
-## v1.5 使用與復原
-
-從 GitHub Releases 下載對應平台壓縮檔，核對 `checksums.txt`，解壓後執行 `sift --version`。
-Semgrep 需另行安裝；規則已嵌入 binary。
-
-```bash
-sift fix . --dry-run
-sift fix path/to/file.py --interactive
-sift fix path/to/file.py --rollback
-```
-
-`--auto`、`--interactive`、`--dry-run`、`--rollback` 互斥。套用 patch 前建立 `.sift.bak`；已有備份時停止，不覆蓋原始版本。套用成功不代表通過測試。
-
-需要生成 Python 測試時，在設定加入：
-
-```toml
-[execution]
-generate = true
-enabled = false
-```
-
-測試保存在 `.sift/generated-tests/`，由你確認 imports、測試假設後手動執行。預設不生成，也不自動執行模型程式碼。Container executor 尚未提供；設為 `enabled = true` 會回報 partial，不會退回主機執行。
-
-版本變更見 [CHANGELOG.md](CHANGELOG.md)。
-
-推送 `v*` tag 後，`.github/workflows/release.yml` 會以 GoReleaser 建置六個平台壓縮檔、SHA-256 清單與 SBOM，並附上 build provenance；發版前須在 `CHANGELOG.md` 加入對應 `## vX.Y.Z` 段落。本機預覽用 `make snapshot`；離線重建可用 `python3 scripts/build-release.py --version X.Y.Z`（不發布）。安裝腳本會驗證 checksum，並支援 `SIFT_VERSION`、`SIFT_INSTALL_DIR`。
+[MIT](LICENSE)

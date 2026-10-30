@@ -1,139 +1,71 @@
-> v1.5.0: [Release changes](CHANGELOG.md) · [Migration guide](MIGRATION.md). Generated tests are export-only; host execution is disabled.
+<h1 align="center">Sift</h1>
 
-# Sift
+<p align="center">
+  <strong>AI が書いたコードのためのセキュリティゲート。</strong><br>
+  コードと依存関係をスキャンし、CI では<em>新しく</em>入った高リスクの問題だけをブロックし、<br>
+  結果をコーディングエージェントに返して修正させます。
+</p>
 
-## スキャン結果の取り扱い
+<p align="center">
+  <a href="https://github.com/KJyang-0114/sift/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/KJyang-0114/sift/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/KJyang-0114/sift/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/KJyang-0114/sift"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
+</p>
 
-Semgrep は事前にインストールしてください（例：`pip install semgrep`）。スキャン中の自動インストールは行いません。
+<p align="center">
+  <a href="README.md">English</a> · <a href="README.zh-Hant.md">繁體中文</a> · <strong>日本語</strong>
+</p>
 
-`scan` の終了コードは `0`（有効な解析が完了）、`1`（`--fail-on` に違反する検出結果あり）、`2`（引数・設定・対象のエラー）、`3`（解析が一部失敗）、`4`（内部エラー・レポート出力失敗）です。`--fail-on` を指定しない場合、検出結果は advisory です。
+<p align="center">
+  <img src="assets/terminal-demo.svg" alt="Sift が新しいコマンドインジェクションと脆弱な lodash をブロックし、受け入れ済みの 14 件を非表示にしている" width="820">
+</p>
 
-既存プロジェクトへの導入：`sift scan . --write-baseline sift-baseline.json` で現在の検出結果を受け入れてコミットし、以後は `--baseline sift-baseline.json --fail-on high` で新しい問題だけをブロックします。baseline はルール・パス・コード内容で照合するため、行の移動では無効になりません。`--output FILE` は `--format` のレポートをファイルに書き出し、ターミナルにも読みやすいレポートを表示します。
+## Sift を使う理由
 
-JSON の `status` は `complete` または `partial`、SARIF は `executionSuccessful` で完了状態を示します。一部失敗しても成功した解析結果を保持し、差分が空でも有効なレポートを出力します。Registry の 401・429・5xx は診断として扱い、存在しないパッケージの検出結果にはしません。
+- **AI がよく犯すミスを検出。** インジェクション、XSS、SSRF、安全でないデシリアライズ、ハードコードされたシークレット、JWT・セッション設定の誤りを 36 個の Semgrep ルールで検出します。
+- **最新の CVE を把握。** スキャンのたびに lockfile の正確なバージョンを [OSV.dev](https://osv.dev) で照合します。[CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)（実際に悪用が確認された脆弱性）に載っている CVE は critical に引き上げ、悪意あるパッケージや AI が作り出した存在しないパッケージも検出します。
+- **初日から導入可能。** baseline で既存の問題を受け入れ、`--fail-on high` は今回の変更で増えた問題だけをブロックします。コードの移動で受け入れ済みの問題が再び出ることはありません。
+- **いつもの場所で動く。** ターミナル、GitHub Code Scanning（SARIF）、Docker イメージによる任意の CI、Claude Code・pre-commit フック。
+- **鍵は自分で選ぶ。** 静的解析と依存関係チェックに API キーは不要です。LLM 解析は任意で、Anthropic、OpenAI、Gemini、OpenRouter、DeepSeek、SiliconFlow、ローカルの Ollama に対応します。
 
-`--config FILE` は指定ファイルを読み込み、存在しない場合はエラーになります。CI は有効なレポートを保存・アップロードしてから終了コードを返してください。詳細は [MIGRATION.md](MIGRATION.md) を参照してください。
+## 仕組み
 
-> AI 搭載コードセキュリティスキャナ — オープンソース、API キー持参、ワンラインインストール。
-
-*[English](./README.md) | [中文](./README.zh-Hant.md)*
-
-Sift は Vibecoding 時代のゲートキーパーです。Semgrep の静的ルールと LLM の意味解析を組み合わせ、AI が生成したコードのセキュリティ脆弱性、幻覚パッケージ、ロジックエラーをスキャンします。
+<p align="center">
+  <img src="assets/how-it-works.svg" alt="コードはルール・依存関係・任意の意味解析を経て、baseline と fail-on ポリシーを通り、ターミナル・SARIF・JSON・エージェントへ出力される" width="100%">
+</p>
 
 ## クイックスタート
 
 ```bash
-# 1. インストール
+pip install semgrep
 curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh | bash
-
-# 2. 設定（最大3問）
-sift init
-
-# 3. スキャン
 sift scan .
 ```
 
-## インストール
+| プラットフォーム | インストール |
+|---|---|
+| macOS / Linux | `curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh \| bash` |
+| Windows | `irm https://raw.githubusercontent.com/KJyang-0114/sift/main/install.ps1 \| iex` |
+| Docker（Semgrep 同梱） | `docker run --rm -v "$PWD:/src" ghcr.io/kjyang-0114/sift:latest scan .` |
+| ソースから（Go 1.26+） | `go install github.com/KJyang-0114/sift/cmd/sift@latest` |
 
-### 自動インストール（推奨）
+インストーラーは SHA-256 チェックサムを検証し、`SIFT_VERSION`・`SIFT_INSTALL_DIR` に対応します。`sift init` で任意の LLM プロバイダーを設定できます。
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh | bash
-```
-
-Windows（PowerShell）：
-
-```powershell
-irm https://raw.githubusercontent.com/KJyang-0114/sift/main/install.ps1 | iex
-```
-
-どちらも checksum を検証し、`SIFT_VERSION`・`SIFT_INSTALL_DIR` に対応します。
-
-### Docker（固定版 Semgrep 同梱、追加インストール不要）
+## 既存プロジェクトへの導入
 
 ```bash
-docker run --rm -v "$PWD:/src" ghcr.io/kjyang-0114/sift:latest scan .
+sift scan . --write-baseline sift-baseline.json   # 現在の問題を受け入れる
+git add sift-baseline.json
+sift scan . --baseline sift-baseline.json --fail-on high
 ```
 
-GitLab などその他の CI での使い方は [docs/ci](docs/ci/README.md) を参照してください。
+baseline は行番号ではなく、ルール・パス・正規化したコード内容で照合します。各エントリに `reason` を書くことができ、`--baseline X --write-baseline X` で更新しても保持されます。受け入れた問題は JSON と SARIF に suppressed として残るため、判断を後から追跡できます。
 
-### 手動 / AI エージェント向け
+## CI で使う
 
-AI コーディングエージェントがユーザーの Sift インストールを支援する場合、以下のコマンドを実行してください：
-
-```bash
-# 1. 最新バージョンを取得
-SIFT_VERSION=$(curl -s https://api.github.com/repos/KJyang-0114/sift/releases/latest | jq -r .tag_name)
-
-# 2. OS とアーキテクチャを検出
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m)
-case "$ARCH" in
-  x86_64) ARCH="amd64" ;;
-  aarch64|arm64) ARCH="arm64" ;;
-esac
-
-# 3. ダウンロードとインストール
-curl -fsSL "https://github.com/KJyang-0114/sift/releases/download/${SIFT_VERSION}/sift_${OS}_${ARCH}.tar.gz" \
-  | sudo tar -xz -C /usr/local/bin sift
-
-# 4. 確認
-sift --version
-```
-
-### ソースからビルド
-
-```bash
-git clone https://github.com/KJyang-0114/sift.git
-cd sift
-go build -o sift ./cmd/sift/
-sudo mv sift /usr/local/bin/
-```
-
-## 使い方
-
-### 基本スキャン
-
-```bash
-# プロジェクト全体をスキャン
-sift scan .
-
-# 単一ファイルをスキャン
-sift scan src/main.go
-
-# 変更されたファイルのみスキャン（vs HEAD）
-sift scan --diff
-
-# 前回のコミットからの変更をスキャン
-sift scan --diff=HEAD~1
-```
-
-### 出力フォーマット
-
-```bash
-# カラー端末出力（デフォルト）
-sift scan . --format terminal
-
-# JSON 形式（プログラム用）
-sift scan . --format json
-
-# SARIF 形式（GitHub Code Scanning 互換）
-sift scan . --format sarif
-
-# LLM 可読形式（任意の LLM に貼り付けて修正可能）
-sift scan . --format llm
-```
-
-`--format llm` は Sift のキラー機能です — 出力を LLM に直接パイプして自動修正できます：
-
-```bash
-sift scan . --format llm | claude -p "上記の全問題を修正してください"
-```
-
-### CI/CD 統合
+**GitHub Actions**：SARIF を Code Scanning にアップロードしてから、ゲートの結果を返します。
 
 ```yaml
-# .github/workflows/sift.yml
 name: sift
 on: [pull_request]
 permissions:
@@ -144,12 +76,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - run: pip install semgrep
       - run: curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh | SIFT_INSTALL_DIR="$HOME/.local/bin" bash
-      - name: Run Sift scan
+      - name: Run Sift
         id: scan
         run: |
           status=0
@@ -163,55 +95,72 @@ jobs:
         run: exit ${{ steps.scan.outputs.exit_code }}
 ```
 
-### AI エージェント連携
+**GitLab・Jenkins などその他の CI**：[docs/ci](docs/ci/README.md) を参照してください。
 
-Claude Code などのエージェントが変更後に自動スキャンし、新しい問題を修正するための設定は [docs/agents.md](docs/agents.md) を参照してください（Stop hook、pre-commit）。
-
-### 環境変数
-
-設定ファイルを使いたくない場合は環境変数で：
+## エージェントに直させる
 
 ```bash
-export SIFT_LLM_PROVIDER=anthropic
-export SIFT_LLM_API_KEY=sk-ant-xxx
-export SIFT_LLM_MODEL=claude-sonnet-4-6
-export SIFT_VULNERABILITIES=false   # 任意：OSV.dev への脆弱性照会を無効化
-
-sift scan .
+sift scan . --format llm | claude -p "Fix these issues"
 ```
 
-## 機能
+自動ループにするには [Claude Code Stop フック](docs/agents.md) を使います。エージェントが終了しようとするたびにスキャンし、新しい高リスクの問題があれば次の指示として返します。スキャンが不完全なときや連続 2 回目はブロックしません。[pre-commit フック](docs/agents.md#pre-commit) もあります。
 
-- **静的セキュリティスキャン**：SQL インジェクション、XSS、コマンドインジェクション、ハードコードされたシークレット
-- **幻覚パッケージ検出**：依存パッケージが NPM / PyPI / Cargo レジストリに実在するか検証
-- **既知脆弱性の照合**：lockfile の正確なバージョンを OSV.dev（GHSA、PyPA、Go、RustSec、悪意あるパッケージ）で照合し、CISA KEV で実際の悪用が確認された CVE は critical に引き上げ
-- **LLM 意味解析**：ロジックエラーとプロンプトインジェクションリスクを検出
-- **自動テスト生成**：AST + LLM の二層エッジケーステスト生成
-- **実験的な動的実行**：現在の Orbital はホストプロセスと一時ディレクトリで生成テストを実行します。コンテナ隔離と明示的な実行ポリシーは未実装です。
-- **LLM 直接出力**：`--format llm` で LLM が直接修正できるレポートを生成
+## コマンド
+
+| コマンド | 用途 |
+|---|---|
+| `sift scan [path]` | ディレクトリまたはファイルをスキャン |
+| `--diff[=REF]` | コミットに対する追跡済みの変更だけ（既定は `HEAD`） |
+| `--format terminal\|json\|sarif\|llm` | レポート形式 |
+| `--output FILE` | レポートをファイルに書き出し、ターミナルにも表示 |
+| `--fail-on SEVERITY`、`--min-confidence LEVEL` | 抑制されていない問題がしきい値に達したら exit `1` |
+| `--baseline FILE`、`--write-baseline FILE` | 既存の問題を受け入れる |
+| `sift fix FILE --dry-run \| --interactive \| --rollback` | LLM によるパッチ提案（バックアップとロールバック付き） |
+| `sift init`、`sift config` | 設定と確認 |
+
+### 終了コード
+
+| コード | 意味 |
+|---|---|
+| `0` | 解析完了。`--fail-on` に違反する問題なし |
+| `1` | 抑制されていない問題が `--fail-on` に達した |
+| `2` | オプション・設定・対象・diff ref が無効 |
+| `3` | 解析が一部失敗。完了した結果と診断は出力される |
+| `4` | 内部エラー、またはレポートを書き込めなかった |
+
+終了コードを返す前に必ずレポートを書き出すので、CI は先にレポートをアップロードできます。
 
 ## 設定
 
-設定ファイルは `~/.sift/config.toml` にあり、`sift init` で自動生成されます。
+`~/.sift/config.toml`（`sift init` で作成）、または `--config FILE`：
 
 ```toml
 [llm]
-provider = "anthropic"        # anthropic | openai | openrouter | ollama | siliconflow | gemini | deepseek | offline
-api_key = "sk-ant-xxx"        # または SIFT_LLM_API_KEY 環境変数を使用
+provider = "anthropic"   # anthropic | openai | openrouter | ollama | siliconflow | gemini | deepseek | offline
 model = "claude-sonnet-4-6"
 
 [scan]
 timeout = 120
 concurrency = 4
-sandbox = "orbital"           # orbital
 
-[output]
-format = "terminal"           # terminal | json | sarif | llm
-color = true
+[vulnerabilities]
+enabled = true           # パッケージ名とバージョンを OSV.dev に送信する
 ```
 
-`sift scan . --config path/to/config.toml` で設定ファイルを指定できます。プロジェクトの `.sift.toml` 自動読み込み、`rules.ignore`、severity policy はまだ接続されていません。
+環境変数：`SIFT_LLM_PROVIDER`、`SIFT_LLM_API_KEY`、`SIFT_LLM_MODEL`。`SIFT_VULNERABILITIES=false` で OSV への照会を無効化できます。パッケージ存在確認は引き続き npm・PyPI・Go proxy・crates.io に接続し、接続できない場合はスキャンが partial（exit 3）になります。
+
+## 制限事項
+
+- ルールやモデルの判断には誤検知があり得ます。対応する前に実際のデータフローを確認してください。
+- 依存関係チェックは、正確なバージョンに一致する公開済みアドバイザリだけを照合します。未公開の 0-day や、脆弱なコードが実際に呼ばれるかどうかは判定しません。
+- `--diff` は未追跡ファイルを含みません。生成されたテストはレビュー用に出力されるだけで、ホスト上では実行されません。
+
+## コントリビュートとセキュリティ
+
+[CHANGELOG](CHANGELOG.md) · [移行ガイド](MIGRATION.md) · [レビューの流れ](docs/REVIEW-WORKFLOW.zh-Hant.md) · Sift 自体の脆弱性は [SECURITY.md](SECURITY.md) に従って非公開で報告してください。
+
+メンテナーは `v*` タグ（と対応する `CHANGELOG.md` の項目）を push するだけでリリースできます。ワークフローがバイナリ、チェックサム、SBOM、provenance、Docker イメージを公開します。
 
 ## ライセンス
 
-MIT License
+[MIT](LICENSE)
