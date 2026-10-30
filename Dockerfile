@@ -1,7 +1,7 @@
 # Sift with a pinned Semgrep, for any CI system:
 #   docker run --rm -v "$PWD:/src" ghcr.io/kjyang-0114/sift scan . --fail-on high
 
-FROM golang:1.25-bookworm AS build
+FROM golang:1.26-bookworm AS build
 WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
