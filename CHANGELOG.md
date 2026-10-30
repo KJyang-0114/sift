@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Distribution
+
+- Publish a multi-arch Docker image (`ghcr.io/kjyang-0114/sift`) with a pinned Semgrep and git on each release.
+- Add `install.ps1` for Windows with checksum verification, `SIFT_VERSION` and `SIFT_INSTALL_DIR`.
+- Add GitLab CI and generic CI templates under `docs/ci/`.
+
 ## v1.5.0 — 2026-09-09
 
 This release advances from v0.1.1 to the requested v1.5.0 release line.

@@ -1,0 +1,20 @@
+# GitLab CI template for Sift. Copy into .gitlab-ci.yml.
+# Optional: accept existing findings once and commit the file:
+#   sift scan . --write-baseline sift-baseline.json
+sift:
+  stage: test
+  image:
+    name: ghcr.io/kjyang-0114/sift:latest
+    entrypoint: [""]
+  variables:
+    SIFT_LLM_PROVIDER: offline
+    SIFT_FAIL_ON: high
+  script:
+    - |
+      set -- --format json --output sift.json --fail-on "$SIFT_FAIL_ON"
+      if [ -f sift-baseline.json ]; then set -- "$@" --baseline sift-baseline.json; fi
+      sift scan . "$@"
+  artifacts:
+    when: always
+    paths:
+      - sift.json
