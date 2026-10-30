@@ -53,6 +53,7 @@ func RenderTerminal(out io.Writer, findings []core.Finding, diagnostics []core.D
 }
 
 func renderTerminal(w io.Writer, findings []core.Finding, diagnostics []core.Diagnostic, target string, duration time.Duration, width int) {
+	findings, suppressed := splitSuppressed(findings)
 
 	groups := core.GroupBySeverity(findings)
 	critical := len(groups[core.SeverityCritical])
@@ -65,6 +66,9 @@ func renderTerminal(w io.Writer, findings []core.Finding, diagnostics []core.Dia
 	printLine(w, width, fmt.Sprintf("🔍 Sift Scan Report — %s", time.Now().Format("2006-01-02 15:04:05")))
 	printLine(w, width, fmt.Sprintf("Project: %s — Scan duration: %.1fs", safeDisplayTarget(target), duration.Seconds()))
 	printLine(w, width, "Scan status: "+(core.AnalysisResult{Diagnostics: diagnostics}).Status())
+	if suppressed > 0 {
+		printLine(w, width, fmt.Sprintf("Suppressed: %d accepted finding(s) hidden (see JSON/SARIF report)", suppressed))
+	}
 	renderDiagnostics(w, diagnostics)
 	printBar(w, width)
 

@@ -24,6 +24,33 @@ unknown `[vulnerabilities]` table now accept it.
 
 Rollback: set `SIFT_VULNERABILITIES=false`; no stored data changes.
 
+## Finding gate and baselines (unreleased)
+
+New `scan` flags; defaults keep previous behavior (findings advisory, exit 0).
+
+| Flag | Behavior |
+|---|---|
+| `--fail-on SEVERITY` | Exit `1` when an unsuppressed finding is at or above `critical`, `high`, `medium`, `low` or `info`. Default `none`. |
+| `--min-confidence LEVEL` | Only findings at or above `high`, `medium` or `low` count toward the gate. Default `low`. |
+| `--baseline FILE` | Mark findings listed in FILE as suppressed. FILE must be inside the working directory; missing, invalid or escaping paths (including symlinks) exit `2`. |
+| `--write-baseline FILE` | Atomically write every current finding to FILE (inside the working directory), then apply it. Reasons from `--baseline` are kept. |
+| `--output FILE`, `-o` | Write the `--format` report to FILE atomically and show the terminal report on stdout (unless `--quiet`). Write failures exit `4`. |
+
+Exit precedence: report or baseline write failure (`4`) > gate (`1`) > partial scan (`3`).
+The report is always written before the gate is evaluated.
+
+Baseline keys hash the finding source, rule, path and whitespace-normalized
+evidence (falling back to the message), plus the occurrence order of identical
+findings in one file. Line numbers are not part of the key. Suppressed findings
+remain in JSON (`suppression.suppressed`, plus `summary.active` and
+`summary.suppressed`) and SARIF (`suppressions`); terminal and LLM output omit them.
+
+Semgrep rule IDs no longer include the random temporary rules directory
+(previously e.g. `var.folders…sift-rules-408344736.sift.sql-injection`, now
+`sift.sql-injection`). Finding IDs and fingerprints for Semgrep findings change
+once; GitHub Code Scanning alerts created with the old IDs will close and reopen
+under stable IDs.
+
 ## Configuration validation follow-up (unreleased)
 
 Both `scan` and `fix` reject invalid timeout, concurrency, sandbox, output format,
@@ -60,7 +87,7 @@ returned zero must handle the following contract:
 | Exit code | Meaning |
 | --- | --- |
 | `0` | Enabled analysis completed. Findings remain advisory. |
-| `1` | Reserved for a future finding policy gate; not emitted by `scan` yet. |
+| `1` | An unsuppressed finding reached `--fail-on` (see "Finding gate and baselines"). Takes precedence over `3`. |
 | `2` | Invalid CLI options, configuration, target, or Git diff reference. |
 | `3` | Analysis is incomplete, including analyzer errors, registry failures, or cancellation during analysis. Successful findings remain in the report. |
 | `4` | Internal failure, including inability to write the report. |

@@ -6,7 +6,9 @@
 
 Semgrep は事前にインストールしてください（例：`pip install semgrep`）。スキャン中の自動インストールは行いません。
 
-`scan` の終了コードは `0`（有効な解析が完了）、`2`（引数・設定・対象のエラー）、`3`（解析が一部失敗）、`4`（内部エラー・レポート出力失敗）です。検出結果は現時点では advisory であり、結果だけで CI を失敗させる gate は未実装です。
+`scan` の終了コードは `0`（有効な解析が完了）、`1`（`--fail-on` に違反する検出結果あり）、`2`（引数・設定・対象のエラー）、`3`（解析が一部失敗）、`4`（内部エラー・レポート出力失敗）です。`--fail-on` を指定しない場合、検出結果は advisory です。
+
+既存プロジェクトへの導入：`sift scan . --write-baseline sift-baseline.json` で現在の検出結果を受け入れてコミットし、以後は `--baseline sift-baseline.json --fail-on high` で新しい問題だけをブロックします。baseline はルール・パス・コード内容で照合するため、行の移動では無効になりません。`--output FILE` は `--format` のレポートをファイルに書き出し、ターミナルにも読みやすいレポートを表示します。
 
 JSON の `status` は `complete` または `partial`、SARIF は `executionSuccessful` で完了状態を示します。一部失敗しても成功した解析結果を保持し、差分が空でも有効なレポートを出力します。Registry の 401・429・5xx は診断として扱い、存在しないパッケージの検出結果にはしません。
 
@@ -118,20 +120,31 @@ sift scan . --format llm | claude -p "上記の全問題を修正してくださ
 # .github/workflows/sift.yml
 name: sift
 on: [pull_request]
+permissions:
+  contents: read
+  security-events: write
 jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
-          go-version: '1.25'
+          python-version: "3.13"
+      - run: pip install semgrep
+      - run: curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh | SIFT_INSTALL_DIR="$HOME/.local/bin" bash
       - name: Run Sift scan
-        env:
-          SIFT_LLM_API_KEY: ${{ secrets.SIFT_LLM_API_KEY }}
+        id: scan
         run: |
-          go install github.com/KJyang-0114/sift/cmd/sift@latest
-          sift scan . --format sarif
+          status=0
+          sift scan . --format sarif --output sift.sarif --baseline sift-baseline.json --fail-on high || status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+      - uses: github/codeql-action/upload-sarif@v4
+        if: ${{ !cancelled() && hashFiles('sift.sarif') != '' }}
+        with:
+          sarif_file: sift.sarif
+      - if: ${{ !cancelled() }}
+        run: exit ${{ steps.scan.outputs.exit_code }}
 ```
 
 ### 環境変数

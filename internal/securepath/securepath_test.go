@@ -116,3 +116,30 @@ func TestReadWriteFileRejectOutsideBase(t *testing.T) {
 		t.Fatal("ReadFile accepted a path outside the base directory")
 	}
 }
+
+func TestWriteFileAtomicStaysInsideBase(t *testing.T) {
+	base := t.TempDir()
+	for _, content := range []string{"first", "second"} {
+		if err := WriteFileAtomic(base, "report.json", []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if data, err := os.ReadFile(filepath.Join(base, "report.json")); err != nil || string(data) != "second" {
+		t.Fatalf("content=%q err=%v", data, err)
+	}
+	if entries, _ := os.ReadDir(base); len(entries) != 1 {
+		t.Fatalf("temporary files left behind: %v", entries)
+	}
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(base, "escape")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	for _, name := range []string{"../x.json", filepath.Join(outside, "x.json"), filepath.Join("escape", "x.json")} {
+		if err := WriteFileAtomic(base, name, []byte("x"), 0o644); err == nil {
+			t.Errorf("WriteFileAtomic(%q) escaped the base directory", name)
+		}
+	}
+	if entries, _ := os.ReadDir(outside); len(entries) != 0 {
+		t.Fatalf("wrote outside base: %v", entries)
+	}
+}

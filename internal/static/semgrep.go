@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -330,7 +331,7 @@ func parseSemgrepOutput(output []byte, request core.ScanRequest) ([]core.Finding
 			evidence.Description = "Semgrep matched this rule at the reported source range."
 		}
 		finding, err := core.NewFinding(core.FindingInput{
-			Source: "semgrep", Rule: r.CheckID, Message: strings.TrimSpace(r.Extra.Message),
+			Source: "semgrep", Rule: normalizeCheckID(r.CheckID), Message: strings.TrimSpace(r.Extra.Message),
 			Severity: severity, Category: category, Confidence: core.ConfidenceHigh,
 			Location: core.Location{
 				Path: relativePath, Line: r.Start.Line, Column: r.Start.Col,
@@ -349,6 +350,16 @@ func parseSemgrepOutput(output []byte, request core.ScanRequest) ([]core.Finding
 	}
 
 	return findings, diagnostics
+}
+
+// tempRulePrefix matches the dotted rules-directory path Semgrep prepends to rule
+// IDs, e.g. "var.folders.x.T.sift-rules-408344736.sift.sql-injection". The
+// directory name is random per scan, so the prefix must be removed for stable
+// rule IDs, fingerprints, baselines and Code Scanning alerts.
+var tempRulePrefix = regexp.MustCompile(`^(?:.*\.)?sift-rules-[0-9]+\.`)
+
+func normalizeCheckID(id string) string {
+	return tempRulePrefix.ReplaceAllString(strings.TrimSpace(id), "")
 }
 
 func readLineFromFile(baseDir, path string, lineNum int) string {
