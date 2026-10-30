@@ -41,3 +41,17 @@ func TestDefaultModelForProvider(t *testing.T) {
 		})
 	}
 }
+
+func TestVulnerabilityLookupsDefaultOnAndEnvCanDisable(t *testing.T) {
+	if !Default().Vulns.Enabled {
+		t.Fatal("vulnerability lookups should be enabled by default")
+	}
+	for value, want := range map[string]bool{"false": false, "0": false, "OFF": false, "true": true, "": true, "maybe": true} {
+		t.Setenv("SIFT_VULNERABILITIES", value)
+		cfg := Default()
+		cfg.applyEnvOverrides()
+		if cfg.Vulns.Enabled != want {
+			t.Errorf("SIFT_VULNERABILITIES=%q enabled=%v want %v", value, cfg.Vulns.Enabled, want)
+		}
+	}
+}

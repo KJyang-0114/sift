@@ -36,6 +36,9 @@ func newConfigCmd() *cobra.Command {
 			fmt.Printf("[output]\n")
 			fmt.Printf("  format = %s\n", cfg.Output.Format)
 			fmt.Printf("  color  = %v\n", cfg.Output.Color)
+			fmt.Println()
+			fmt.Printf("[vulnerabilities]\n")
+			fmt.Printf("  enabled = %v\n", cfg.Vulns.Enabled)
 			return nil
 		},
 	}

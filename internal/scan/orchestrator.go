@@ -17,6 +17,7 @@ import (
 	"github.com/KJyang-0114/sift/internal/report"
 	"github.com/KJyang-0114/sift/internal/static"
 	"github.com/KJyang-0114/sift/internal/store"
+	"github.com/KJyang-0114/sift/internal/vuln"
 )
 
 // Orchestrator coordinates all analyzers and executes the fully automated scan workflow.
@@ -46,6 +47,9 @@ func NewOrchestrator(cfg *config.Config) *Orchestrator {
 	pkgVerifier := agent.NewPackageVerifier()
 
 	staticAnalyzers := []core.Analyzer{semgrep, pkgVerifier}
+	if cfg.Vulns.Enabled {
+		staticAnalyzers = append(staticAnalyzers, vuln.NewScanner())
+	}
 	dynamicAnalyzers := []core.Analyzer{}
 	var initErr error
 

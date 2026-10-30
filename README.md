@@ -39,9 +39,20 @@ CLI target / config / diff ref
 
 已知 vulnerability class 先交給可重現的 rules。LLM analyzer 用於補充語意判斷，不取代靜態檢查。
 
+### 已知漏洞（CVE）比對
+
+讀取 lockfile 的精確版本（`package-lock.json`、`npm-shrinkwrap.json`、`poetry.lock`、`uv.lock`、`Pipfile.lock`、`requirements*.txt` 的 `==` 版本、`Cargo.lock`、`go.mod`），向 [OSV.dev](https://osv.dev) 查詢 GHSA、PyPA、Go、RustSec 等公開漏洞與 OpenSSF 惡意套件資料。列入 [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)（已確認遭實際利用）的 CVE 一律升為 critical 並標示 `[Known Exploited]`。
+
+- 每次掃描即時查詢，新公布的 advisory 不需更新 Sift 即可命中。
+- 同一漏洞的 GHSA／PYSEC 等別名合併為一筆；修補建議取目前版本所在分支的修正版。
+- 沒有精確版本的依賴不會比對，並以 `vulnerability-db.unpinned` info 提示。
+- 會將套件名稱與版本送到 OSV.dev；設定 `[vulnerabilities] enabled = false` 或 `SIFT_VULNERABILITIES=false` 可關閉。
+- OSV 無法連線時掃描為 partial（exit 3）；KEV 無法取得只產生 warning，findings 仍保留。
+- 比對的是已公開 advisory，不涵蓋尚未揭露的 0-day，也不分析程式是否實際呼叫到有漏洞的函式。
+
 ### 無 LLM 模式
 
-provider = "offline" 時不呼叫 LLM；套件驗證仍會連線 registry。Ollama 不需要 API key。
+provider = "offline" 時不呼叫 LLM；套件驗證與漏洞比對仍會連線 registry／OSV.dev。Ollama 不需要 API key。
 
 ### Output formats
 
