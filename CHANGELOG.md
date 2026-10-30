@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Rules
+
+- `sift.ssrf-http-request` no longer reports every `.get()` call (such as Python `dict.get` or JavaScript `Map.get`); the generic pattern now requires an HTTP-client receiver and a non-literal URL. Rule test cases run with `semgrep --test` in CI.
+
 ### Known vulnerabilities
 
 - Match exact lockfile versions (npm, PyPI, Go, crates.io) against OSV.dev advisories, including OpenSSF malicious-package records.
