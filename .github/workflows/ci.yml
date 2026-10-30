@@ -59,6 +59,83 @@ jobs:
       - name: Lint installer
         run: shellcheck install.sh
 
+  docker:
+    name: docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Build image
+        run: docker build --build-arg VERSION=ci --build-arg COMMIT="$GITHUB_SHA" -t sift:ci .
+
+      - name: Scan a fixture inside the image
+        run: |
+          docker run --rm sift:ci --version | grep -F "sift version ci"
+          docker run --rm --entrypoint semgrep sift:ci --version
+          fixture="$RUNNER_TEMP/fixture"
+          mkdir -p "$fixture"
+          printf 'import os\n\ndef run(x):\n    os.system("ls " + x)\n' > "$fixture/app.py"
+          git -C "$fixture" init -q
+          git -C "$fixture" add .
+          git -C "$fixture" -c user.name=ci -c user.email=ci@example.invalid -c commit.gpgsign=false commit -qm fixture
+          docker run --rm -e SIFT_LLM_PROVIDER=offline -v "$fixture:/src" sift:ci scan . --format json > full.json
+          echo 'print(1)' >> "$fixture/app.py"
+          docker run --rm -e SIFT_LLM_PROVIDER=offline -v "$fixture:/src" sift:ci scan . --diff=HEAD --format json > diff.json
+          python3 - <<'PY'
+          import json
+          for name in ("full.json", "diff.json"):
+              report = json.load(open(name))
+              assert report["status"] == "complete", (name, report["diagnostics"])
+              assert any(f["rule"].endswith("command-injection-shell") for f in report["findings"]), (name, report["findings"])
+          print("docker image scans complete with findings")
+          PY
+
+  install:
+    name: install (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      SIFT_VERSION: v1.5.0
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install with install.sh
+        if: runner.os != 'Windows'
+        env:
+          SIFT_INSTALL_DIR: ${{ runner.temp }}/bin
+        run: |
+          ./install.sh
+          "$SIFT_INSTALL_DIR/sift" --version | grep -F "1.5.0"
+
+      - name: Install with install.ps1
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          SIFT_INSTALL_DIR: ${{ runner.temp }}\bin
+        run: |
+          # Run the way users do (irm | iex): twice, so the second run exercises the upgrade path.
+          $ErrorActionPreference = "Continue"
+          $ProgressPreference = "Continue"
+          foreach ($run in 1..2) {
+            Get-Content ./install.ps1 -Raw | Invoke-Expression
+          }
+          if ($ErrorActionPreference -ne "Continue" -or $ProgressPreference -ne "Continue") {
+            throw "installer leaked preferences into the caller's session"
+          }
+          $version = & (Join-Path $env:SIFT_INSTALL_DIR "sift.exe") --version
+          if ($version -notmatch "1\.5\.0") { throw "unexpected version: $version" }
+          $leftovers = Get-ChildItem $env:SIFT_INSTALL_DIR -Force -Filter ".sift.exe.*"
+          if ($leftovers) { throw "staging files left behind: $($leftovers.Name -join ', ')" }
+
   build:
     name: build (${{ matrix.os }})
     strategy:

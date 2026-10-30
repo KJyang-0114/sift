@@ -1,0 +1,7 @@
+.git
+dist
+/sift
+.sift
+planning
+docs/superpowers
+**/node_modules

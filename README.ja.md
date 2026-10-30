@@ -41,6 +41,22 @@ sift scan .
 curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh | bash
 ```
 
+Windows（PowerShell）：
+
+```powershell
+irm https://raw.githubusercontent.com/KJyang-0114/sift/main/install.ps1 | iex
+```
+
+どちらも checksum を検証し、`SIFT_VERSION`・`SIFT_INSTALL_DIR` に対応します。
+
+### Docker（固定版 Semgrep 同梱、追加インストール不要）
+
+```bash
+docker run --rm -v "$PWD:/src" ghcr.io/kjyang-0114/sift:latest scan .
+```
+
+GitLab などその他の CI での使い方は [docs/ci](docs/ci/README.md) を参照してください。
+
 ### 手動 / AI エージェント向け
 
 AI コーディングエージェントがユーザーの Sift インストールを支援する場合、以下のコマンドを実行してください：
