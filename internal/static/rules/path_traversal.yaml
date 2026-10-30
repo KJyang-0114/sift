@@ -2,7 +2,7 @@ rules:
   - id: sift.path-traversal-file-op
     message: |
       [Path Traversal] File path is constructed from a variable and may be manipulated with ../ to escape the intended directory.
-    severity: WARNING
+    severity: HIGH
     languages:
       - python
       - javascript
@@ -14,5 +14,6 @@ rules:
       # Skip paths anchored to a string literal or to the program's own location.
       - pattern-regex: ((?<![\w.])open\(|os\.path\.join\(|fs\.readFile(?:Sync)?\(|os\.ReadFile\()(?!\s*(?:["'`]|__file__|__dirname|os\.path\.dirname\(\s*__file__|Path\(\s*__file__|path\.join\(\s*__dirname))
     metadata:
+      confidence: LOW
       category: security
       cwe: "CWE-22"

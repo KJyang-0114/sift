@@ -3,7 +3,7 @@ rules:
     message: |
       [LLM Review] LLM API call detected; review how untrusted input is isolated.
       Separate user input from system instructions in the prompt.
-    severity: WARNING
+    severity: MEDIUM
     languages:
       - python
       - javascript
@@ -12,6 +12,7 @@ rules:
     patterns:
       - pattern-regex: (\.chat\.completions\.create\s*\(|\.messages\.create\s*\()
     metadata:
+      confidence: LOW
       category: security
       cwe: "CWE-77"
       owasp: "LLM01:2025 - Prompt Injection"

@@ -3,13 +3,14 @@ rules:
     message: |
       [XSS] dangerouslySetInnerHTML renders user input directly, which may lead to XSS.
       Use DOMPurify or avoid injecting raw HTML directly.
-    severity: ERROR
+    severity: HIGH
     languages:
       - javascript
       - typescript
     patterns:
       - pattern: dangerouslySetInnerHTML
     metadata:
+      confidence: LOW
       category: security
       cwe: "CWE-79"
 
@@ -17,7 +18,7 @@ rules:
     message: |
       [XSS] innerHTML/outerHTML/document.write may inject malicious scripts.
       Use textContent instead or sanitize input first.
-    severity: WARNING
+    severity: MEDIUM
     languages:
       - javascript
       - typescript
@@ -26,19 +27,21 @@ rules:
           - pattern: $EL.innerHTML = $INPUT
           - pattern: document.write($INPUT)
     metadata:
+      confidence: LOW
       category: security
       cwe: "CWE-79"
 
   - id: sift.frontend-eval
     message: |
       [XSS] eval() can execute arbitrary JavaScript.
-    severity: ERROR
+    severity: HIGH
     languages:
       - javascript
       - typescript
     patterns:
       - pattern: eval($INPUT)
     metadata:
+      confidence: MEDIUM
       category: security
       cwe: "CWE-95"
 
@@ -46,7 +49,7 @@ rules:
     message: |
       [Security] localStorage should not store sensitive data (tokens, passwords).
       Use httpOnly cookies instead.
-    severity: WARNING
+    severity: MEDIUM
     languages:
       - javascript
       - typescript
@@ -67,13 +70,14 @@ rules:
               metavariable: $V
               regex: (?i).*(token|jwt|secret|passw|credential|api_?key|apikey).*
     metadata:
+      confidence: MEDIUM
       category: security
       cwe: "CWE-922"
 
   - id: sift.frontend-open-redirect
     message: |
       [Security] window.location using a user-controllable URL may lead to open redirect.
-    severity: WARNING
+    severity: MEDIUM
     languages:
       - javascript
       - typescript
@@ -82,5 +86,6 @@ rules:
           - pattern: window.location.href = $U
           - pattern: window.location.replace($U)
     metadata:
+      confidence: LOW
       category: security
       cwe: "CWE-601"

@@ -3,7 +3,7 @@ rules:
     message: |
       [Error Handling] Error messages returned directly to the client may leak internal information.
       In production, log errors only and return a generic error response.
-    severity: WARNING
+    severity: MEDIUM
     languages:
       - python
       - javascript
@@ -13,6 +13,7 @@ rules:
       # Error details sent to the client; returning err.Error() inside a program is not a leak.
       - pattern-regex: (\.(?:send|json|end|write)\([^\n]*\b(?:err|error|e|ex)\.(?:stack|message)\b|\.send\(\s*(?:err|error)\s*\)|http\.Error\([^,\n]+,\s*err\.Error\(\)|jsonify\([^\n]*str\(\s*(?:e|err|exc|error)\s*\))
     metadata:
+      confidence: MEDIUM
       category: security
       cwe: "CWE-209"
 
@@ -20,7 +21,7 @@ rules:
     message: |
       [Reliability] This unhandledRejection handler discards the error, hiding failures.
       Log the reason and exit, or let the process crash so it can be restarted.
-    severity: INFO
+    severity: LOW
     languages:
       - javascript
       - typescript
@@ -31,4 +32,5 @@ rules:
           - pattern: process.on("unhandledRejection", function () {})
           - pattern: process.on("unhandledRejection", function ($R) {})
     metadata:
+      confidence: HIGH
       category: reliability

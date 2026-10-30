@@ -24,7 +24,8 @@ type Gate struct {
 
 // ParseGate validates --fail-on and --min-confidence values.
 func ParseGate(failOn, minConfidence string) (Gate, error) {
-	gate := Gate{MinConfidence: core.ConfidenceLow}
+	// Medium by default: low-confidence heuristics report findings but do not block.
+	gate := Gate{MinConfidence: core.ConfidenceMedium}
 	switch value := core.Severity(strings.ToLower(strings.TrimSpace(failOn))); {
 	case value == "" || value == "none":
 	case value.Valid():
