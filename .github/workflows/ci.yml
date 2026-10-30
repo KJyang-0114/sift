@@ -57,7 +57,10 @@ jobs:
           args: check
 
       - name: Lint installer
-        run: shellcheck install.sh
+        run: shellcheck install.sh integrations/claude-code/*.sh
+
+      - name: Claude Code hook behavior
+        run: sh integrations/claude-code/test-sift-stop-hook.sh
 
   build:
     name: build (${{ matrix.os }})

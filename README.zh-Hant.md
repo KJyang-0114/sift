@@ -147,6 +147,10 @@ jobs:
         run: exit ${{ steps.scan.outputs.exit_code }}
 ```
 
+### 接上 AI agent
+
+讓 Claude Code 等 agent 改完程式後自動掃描並修正新問題：見 [docs/agents.md](docs/agents.md)（Stop hook、pre-commit）。
+
 ### 環境變數
 
 不想用設定檔？用環境變數即可：

@@ -147,6 +147,10 @@ jobs:
         run: exit ${{ steps.scan.outputs.exit_code }}
 ```
 
+### AI エージェント連携
+
+Claude Code などのエージェントが変更後に自動スキャンし、新しい問題を修正するための設定は [docs/agents.md](docs/agents.md) を参照してください（Stop hook、pre-commit）。
+
 ### 環境変数
 
 設定ファイルを使いたくない場合は環境変数で：
