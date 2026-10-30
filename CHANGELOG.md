@@ -9,6 +9,13 @@
 - Merge aliased advisories into one finding and recommend the fix for the installed release line.
 - Report OSV outages as partial scans; disable lookups with `[vulnerabilities] enabled = false` or `SIFT_VULNERABILITIES=false`.
 
+### Finding gate
+
+- Add `--fail-on` and `--min-confidence`; exit code `1` when unsuppressed findings reach the threshold, after the report is written.
+- Add `--baseline` and `--write-baseline` with line-independent matching so existing findings do not block CI and hand-written reasons survive refreshes.
+- Add `--output` to write the selected report to a file while showing the terminal report.
+- Fix Semgrep rule IDs that embedded the random temporary rules directory, which made every scan look like new rules in Code Scanning.
+
 ## v1.5.0 — 2026-09-09
 
 This release advances from v0.1.1 to the requested v1.5.0 release line.

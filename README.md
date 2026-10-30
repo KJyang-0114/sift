@@ -77,7 +77,8 @@ go build -o sift ./cmd/sift
 
 | 退出碼 | 意義 |
 |---|---|
-| `0` | 啟用的分析已完成；findings 目前僅供參考 |
+| `0` | 啟用的分析已完成；未設定 `--fail-on` 時 findings 僅供參考 |
+| `1` | 有未抑制的 finding 達到 `--fail-on` 門檻（優先於 `3`） |
 | `2` | 設定、參數、目標或 diff ref 無效 |
 | `3` | 部分掃描失敗；報告保留已完成的結果與 diagnostics |
 | `4` | 內部或報告寫入失敗 |
@@ -85,6 +86,20 @@ go build -o sift ./cmd/sift
 JSON 包含 `status: complete / partial`；SARIF 使用 `executionSuccessful`。
 registry 限流、權限與服務異常列為 diagnostics，不會當成不存在套件。
 CI 應先保存、上傳報告，再回傳掃描退出碼。完整變更見 [MIGRATION.md](MIGRATION.md)。
+
+### Gate 與 baseline
+
+```bash
+# 舊專案：接受現有問題，commit sift-baseline.json
+sift scan . --write-baseline sift-baseline.json
+# 之後只擋新增、高信心的高風險問題；SARIF 寫檔，終端照常顯示
+sift scan . --baseline sift-baseline.json --fail-on high --min-confidence medium \
+  --format sarif --output sift.sarif
+```
+
+- baseline 以規則、路徑與正規化後的程式內容比對，不看行號；同檔相同內容依出現順序區分。
+- 命中的 finding 不刪除，只標為 suppressed：JSON 的 `summary.active`／`summary.suppressed`、SARIF 的 `suppressions`；終端與 LLM 格式隱藏它們。
+- 可在 baseline 每筆填 `reason`；`--baseline X --write-baseline X` 重新產生時會保留原因。
 
 ## 驗證
 

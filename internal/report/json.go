@@ -24,12 +24,14 @@ type jsonReport struct {
 }
 
 type jsonSummary struct {
-	Total    int `json:"total"`
-	Critical int `json:"critical"`
-	High     int `json:"high"`
-	Medium   int `json:"medium"`
-	Low      int `json:"low"`
-	Info     int `json:"info"`
+	Total      int `json:"total"`
+	Active     int `json:"active"`
+	Suppressed int `json:"suppressed"`
+	Critical   int `json:"critical"`
+	High       int `json:"high"`
+	Medium     int `json:"medium"`
+	Low        int `json:"low"`
+	Info       int `json:"info"`
 }
 
 // RenderJSON outputs the scan report in JSON format.
@@ -44,6 +46,7 @@ func RenderJSON(w io.Writer, findings []core.Finding, diagnostics []core.Diagnos
 
 func encodeJSON(findings []core.Finding, diagnostics []core.Diagnostic, target string, duration time.Duration, now time.Time) ([]byte, error) {
 	groups := core.GroupBySeverity(findings)
+	active, suppressed := splitSuppressed(findings)
 
 	report := jsonReport{
 		SchemaVersion: core.FindingSchemaVersion,
@@ -54,12 +57,14 @@ func encodeJSON(findings []core.Finding, diagnostics []core.Diagnostic, target s
 		Timestamp:     now.Format(time.RFC3339),
 		Duration:      fmt.Sprintf("%.2fs", duration.Seconds()),
 		Summary: jsonSummary{
-			Total:    len(findings),
-			Critical: len(groups[core.SeverityCritical]),
-			High:     len(groups[core.SeverityHigh]),
-			Medium:   len(groups[core.SeverityMedium]),
-			Low:      len(groups[core.SeverityLow]),
-			Info:     len(groups[core.SeverityInfo]),
+			Total:      len(findings),
+			Active:     len(active),
+			Suppressed: suppressed,
+			Critical:   len(groups[core.SeverityCritical]),
+			High:       len(groups[core.SeverityHigh]),
+			Medium:     len(groups[core.SeverityMedium]),
+			Low:        len(groups[core.SeverityLow]),
+			Info:       len(groups[core.SeverityInfo]),
 		},
 		Findings:    findings,
 		Diagnostics: diagnostics,

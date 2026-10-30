@@ -153,3 +153,20 @@ func TestEmbeddedRulesLoadOnEveryPlatform(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalizeCheckIDRemovesRandomRulesDirectory(t *testing.T) {
+	cases := map[string]string{
+		"var.folders.cm.yq3h8k5x2ms6rxkprqrswync0000gn.T.sift-rules-408344736.sift.command-injection-shell": "sift.command-injection-shell",
+		"tmp.sift-rules-1.sift.sql-injection":                   "sift.sql-injection",
+		"C:.Users.me.AppData.Local.Temp.sift-rules-77.sift.xss": "sift.xss",
+		"sift-rules-5.sift.ssrf":                                "sift.ssrf",
+		"sift.sql-injection":                                    "sift.sql-injection",
+		"fixture":                                               "fixture",
+		"custom.sift-rules-x.rule":                              "custom.sift-rules-x.rule",
+	}
+	for input, want := range cases {
+		if got := normalizeCheckID(input); got != want {
+			t.Errorf("normalizeCheckID(%q)=%q want %q", input, got, want)
+		}
+	}
+}

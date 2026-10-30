@@ -74,7 +74,7 @@ func TestEncodeJSONCountsSeveritiesAndCarriesTypedDiagnostics(t *testing.T) {
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatal(err)
 	}
-	want := jsonSummary{Total: 6, Critical: 1, High: 2, Medium: 1, Low: 1, Info: 1}
+	want := jsonSummary{Total: 6, Active: 6, Critical: 1, High: 2, Medium: 1, Low: 1, Info: 1}
 	if got.Summary != want {
 		t.Fatalf("summary = %#v, want %#v", got.Summary, want)
 	}

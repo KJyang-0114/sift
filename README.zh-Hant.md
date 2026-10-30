@@ -68,7 +68,9 @@ sudo mv sift /usr/local/bin/
 
 ### 掃描完整性
 
-`scan` 的退出碼：`0`＝啟用的分析完成、`2`＝參數／設定／目標錯誤、`3`＝部分掃描失敗、`4`＝內部／報告寫入失敗。Findings 目前是 advisory，尚無 finding gate；`1` 保留供後續使用。
+`scan` 的退出碼：`0`＝啟用的分析完成、`1`＝有 finding 違反 `--fail-on`、`2`＝參數／設定／目標錯誤、`3`＝部分掃描失敗、`4`＝內部／報告寫入失敗。未設定 `--fail-on` 時 findings 僅供參考。
+
+舊專案導入：先執行 `sift scan . --write-baseline sift-baseline.json` 接受現有問題並 commit 該檔；之後 `--baseline sift-baseline.json --fail-on high` 只會擋新增的問題。baseline 以規則、路徑與程式內容比對，程式上下移動不會失效；可在檔案中為每筆填寫 `reason`。`--output FILE` 會把 `--format` 報告寫入檔案，同時在終端顯示可讀報告。
 
 JSON 帶有 `status: complete / partial`，SARIF 以 `executionSuccessful` 表達完整性；部分失敗仍保留 findings 與 diagnostics。空 diff 仍輸出有效報告。Registry 的 401／429／5xx 不會變成不存在套件的 finding。
 
@@ -118,20 +120,31 @@ sift scan . --format llm | claude -p "修復以上所有問題"
 # .github/workflows/sift.yml
 name: sift
 on: [pull_request]
+permissions:
+  contents: read
+  security-events: write
 jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
-          go-version: '1.25'
+          python-version: "3.13"
+      - run: pip install semgrep
+      - run: curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh | SIFT_INSTALL_DIR="$HOME/.local/bin" bash
       - name: Run Sift scan
-        env:
-          SIFT_LLM_API_KEY: ${{ secrets.SIFT_LLM_API_KEY }}
+        id: scan
         run: |
-          go install github.com/KJyang-0114/sift/cmd/sift@latest
-          sift scan . --format sarif
+          status=0
+          sift scan . --format sarif --output sift.sarif --baseline sift-baseline.json --fail-on high || status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+      - uses: github/codeql-action/upload-sarif@v4
+        if: ${{ !cancelled() && hashFiles('sift.sarif') != '' }}
+        with:
+          sarif_file: sift.sarif
+      - if: ${{ !cancelled() }}
+        run: exit ${{ steps.scan.outputs.exit_code }}
 ```
 
 ### 環境變數

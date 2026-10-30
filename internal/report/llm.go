@@ -18,8 +18,12 @@ func RenderLLM(out io.Writer, findings []core.Finding, diagnostics []core.Diagno
 }
 
 func renderLLM(w io.Writer, findings []core.Finding, diagnostics []core.Diagnostic, target string) {
+	findings, suppressed := splitSuppressed(findings)
 	fmt.Fprintln(w, "# Code Issues Report")
 	fmt.Fprintln(w, "Scan status:", (core.AnalysisResult{Diagnostics: diagnostics}).Status())
+	if suppressed > 0 {
+		fmt.Fprintf(w, "%d accepted finding(s) are suppressed and omitted; do not change them.\n", suppressed)
+	}
 	renderDiagnostics(w, diagnostics)
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "The following security and logic issues were found in `%s`.\n", safeDisplayTarget(target))
