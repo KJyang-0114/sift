@@ -118,4 +118,4 @@ enabled = false
 
 版本變更見 [CHANGELOG.md](CHANGELOG.md)。
 
-維護者可使用 `python3 scripts/build-release.py --version 1.5.0` 重建六個平台壓縮檔與 SHA-256 清單；輸出位於 `dist/1.5.0/`，腳本不會發布遠端 release。
+推送 `v*` tag 後，`.github/workflows/release.yml` 會以 GoReleaser 建置六個平台壓縮檔、SHA-256 清單與 SBOM，並附上 build provenance；發版前須在 `CHANGELOG.md` 加入對應 `## vX.Y.Z` 段落。本機預覽用 `make snapshot`；離線重建可用 `python3 scripts/build-release.py --version X.Y.Z`（不發布）。安裝腳本會驗證 checksum，並支援 `SIFT_VERSION`、`SIFT_INSTALL_DIR`。

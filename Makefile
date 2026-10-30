@@ -1,4 +1,4 @@
-.PHONY: build install fmt-check test test-race lint ci clean release
+.PHONY: build install fmt-check test test-race lint ci clean release release-dry-run snapshot run
 
 BINARY := sift
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -30,12 +30,14 @@ clean:
 	rm -f $(BINARY)
 	go clean
 
+# Releases are published by .github/workflows/release.yml when a v* tag is pushed.
 release:
-	@echo "Creating release with GoReleaser..."
-	goreleaser release --clean
+	@echo "Push a v* tag to release (see .github/workflows/release.yml)." && exit 1
 
-release-dry-run:
-	goreleaser release --skip=publish --clean --snapshot
+snapshot:
+	goreleaser release --snapshot --clean
+
+release-dry-run: snapshot
 
 run: build
 	./$(BINARY) scan .

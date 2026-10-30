@@ -1,12 +1,12 @@
 # Sift — GoReleaser 配置
-# 每次 push tag 自動建置多平台 binary + GitHub Release
+# push v* tag 時由 .github/workflows/release.yml 建置多平台 binary + GitHub Release。
+# 本機預覽：make snapshot
 
 version: 2
 
 before:
   hooks:
-    - go mod tidy
-    - go generate ./...
+    - go mod verify
 
 builds:
   - id: sift
@@ -21,36 +21,37 @@ builds:
     goarch:
       - amd64
       - arm64
+    flags:
+      - -trimpath
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+      - -s -w -X main.version={{.Version}} -X main.commit={{.FullCommit}} -X main.date={{.Date}}
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
-  - format: tar.gz
+  - formats: [tar.gz]
     name_template: >-
       sift_{{ .Os }}_{{ .Arch }}
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - LICENSE
       - README.md
+      - MIGRATION.md
+      - CHANGELOG.md
 
 checksum:
   name_template: "checksums.txt"
+  algorithm: sha256
+
+sboms:
+  - artifacts: archive
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
-      - "^ci:"
-      - Merge pull request
-      - Merge branch
+  disable: true
 
 release:
   github:
