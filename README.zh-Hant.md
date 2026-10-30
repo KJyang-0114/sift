@@ -63,7 +63,7 @@ baseline 以規則、路徑與正規化後的程式內容比對，不看行號�
 
 ## 接上 CI
 
-**GitHub Actions**：上傳 SARIF 到 Code Scanning，再回傳 gate 結果：
+**GitHub Actions**：一個步驟就會安裝 Semgrep 與 Sift、上傳 SARIF 到 Code Scanning，只在新增的高風險問題時失敗（低信心度的啟發式結果只報告、不擋）：
 
 ```yaml
 name: sift
@@ -76,26 +76,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.13"
-      - run: pip install semgrep
-      - run: curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh | SIFT_INSTALL_DIR="$HOME/.local/bin" bash
-      - name: Run Sift
-        id: scan
-        run: |
-          status=0
-          sift scan . --format sarif --output sift.sarif --baseline sift-baseline.json --fail-on high || status=$?
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-      - uses: github/codeql-action/upload-sarif@v4
-        if: ${{ !cancelled() && hashFiles('sift.sarif') != '' }}
-        with:
-          sarif_file: sift.sarif
-      - if: ${{ !cancelled() }}
-        run: exit ${{ steps.scan.outputs.exit_code }}
+      - uses: KJyang-0114/sift@v1
 ```
 
-**GitLab、Jenkins 等其他 CI**：見 [docs/ci](docs/ci/README.md)。
+`fail-on`、`baseline`、`upload-sarif` 等參數，以及 **GitLab、Jenkins 等其他 CI**，見 [docs/ci](docs/ci/README.md)。
 
 ## 讓 agent 自己修
 
