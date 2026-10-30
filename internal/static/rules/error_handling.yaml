@@ -10,19 +10,25 @@ rules:
       - typescript
       - go
     patterns:
-      - pattern-regex: (\.send\(.*err|\.status\(500\).*send\(|\.json\(\{.*error|return.*err\.Error\(\))
+      # Error details sent to the client; returning err.Error() inside a program is not a leak.
+      - pattern-regex: (\.(?:send|json|end|write)\([^\n]*\b(?:err|error|e|ex)\.(?:stack|message)\b|\.send\(\s*(?:err|error)\s*\)|http\.Error\([^,\n]+,\s*err\.Error\(\)|jsonify\([^\n]*str\(\s*(?:e|err|exc|error)\s*\))
     metadata:
       category: security
       cwe: "CWE-209"
 
   - id: sift.error-unhandled-rejection
     message: |
-      [Reliability] Unhandled Promise rejections may cause the process to crash.
+      [Reliability] This unhandledRejection handler discards the error, hiding failures.
+      Log the reason and exit, or let the process crash so it can be restarted.
     severity: INFO
     languages:
       - javascript
       - typescript
     patterns:
-      - pattern: process.on
+      - pattern-either:
+          - pattern: process.on("unhandledRejection", () => {})
+          - pattern: process.on("unhandledRejection", ($R) => {})
+          - pattern: process.on("unhandledRejection", function () {})
+          - pattern: process.on("unhandledRejection", function ($R) {})
     metadata:
       category: reliability

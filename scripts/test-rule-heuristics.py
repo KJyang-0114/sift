@@ -33,13 +33,26 @@ class RuleRegressionTests(unittest.TestCase):
 
     def test_environment_file(self):
         rule = pattern('config_security.yaml', 1)
-        self.assertIsNone(rule.search('os.environ'))
-        self.assertIsNotNone(rule.search('".env"'))  # nosemgrep -- inert regex fixture string; never executed
+        for safe in ['os.environ', 'process.env.PORT', 'const secret = process.env.JWT_SECRET;']:
+            self.assertIsNone(rule.search(safe), safe)
+        for candidate in ['".env"', "'config/.env.production'", '`.env.local`']:  # nosemgrep -- inert regex fixture string; never executed
+            self.assertIsNotNone(rule.search(candidate), candidate)
 
     def test_file_open(self):
         rule = pattern('path_traversal.yaml')
-        self.assertIsNone(rule.search('tarfile.open(archive)'))
-        self.assertIsNotNone(rule.search('open(user_path)'))  # nosemgrep -- inert regex fixture string; never executed
+        for safe in ['tarfile.open(archive)', 'open("settings.json")', 'os.path.join(os.path.dirname(__file__), "static")',
+                     'open(Path(__file__).parent / "x")', 'fs.readFileSync(path.join(__dirname, "a"))']:
+            self.assertIsNone(rule.search(safe), safe)
+        for candidate in ['open(user_path)', 'os.path.join(base, name)', 'fs.readFile(req.query.file)']:  # nosemgrep -- inert regex fixture string; never executed
+            self.assertIsNotNone(rule.search(candidate), candidate)
+
+    def test_error_leak(self):
+        rule = pattern('error_handling.yaml')
+        for safe in ['return err.Error()', "res.status(404).json({ error: 'Not found' })", 'http.Error(w, "internal", 500)']:
+            self.assertIsNone(rule.search(safe), safe)
+        for candidate in ['res.status(500).json({ error: err.message })', 'res.send(err)',  # nosemgrep -- inert regex fixture string; never executed
+                          'http.Error(w, err.Error(), http.StatusInternalServerError)', 'return jsonify(error=str(e)), 500']:  # nosemgrep -- inert regex fixture string; never executed
+            self.assertIsNotNone(rule.search(candidate), candidate)
 
 
 if __name__ == '__main__':

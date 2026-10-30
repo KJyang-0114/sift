@@ -22,7 +22,7 @@
 
 ## Why Sift
 
-- **Catches what assistants get wrong.** 36 embedded Semgrep rules for injection, XSS, SSRF, unsafe deserialization, hard-coded secrets, JWT and session mistakes.
+- **Catches what assistants get wrong.** 38 embedded Semgrep rules for injection, XSS, SSRF, unsafe deserialization, hard-coded secrets, JWT and session mistakes.
 - **Knows today's CVEs.** Exact lockfile versions are checked against [OSV.dev](https://osv.dev) on every scan. CVEs in the [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) catalog become critical; malicious and hallucinated packages are flagged too.
 - **Adoptable on day one.** A baseline accepts existing findings, so `--fail-on high` blocks only what a change introduces. Moving code does not resurface accepted findings.
 - **Works where you work.** Terminal, GitHub Code Scanning (SARIF), any CI through the Docker image, and Claude Code or pre-commit hooks.

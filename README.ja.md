@@ -22,7 +22,7 @@
 
 ## Sift を使う理由
 
-- **AI がよく犯すミスを検出。** インジェクション、XSS、SSRF、安全でないデシリアライズ、ハードコードされたシークレット、JWT・セッション設定の誤りを 36 個の Semgrep ルールで検出します。
+- **AI がよく犯すミスを検出。** インジェクション、XSS、SSRF、安全でないデシリアライズ、ハードコードされたシークレット、JWT・セッション設定の誤りを 38 個の Semgrep ルールで検出します。
 - **最新の CVE を把握。** スキャンのたびに lockfile の正確なバージョンを [OSV.dev](https://osv.dev) で照合します。[CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)（実際に悪用が確認された脆弱性）に載っている CVE は critical に引き上げ、悪意あるパッケージや AI が作り出した存在しないパッケージも検出します。
 - **初日から導入可能。** baseline で既存の問題を受け入れ、`--fail-on high` は今回の変更で増えた問題だけをブロックします。コードの移動で受け入れ済みの問題が再び出ることはありません。
 - **いつもの場所で動く。** ターミナル、GitHub Code Scanning（SARIF）、Docker イメージによる任意の CI、Claude Code・pre-commit フック。

@@ -50,10 +50,22 @@ rules:
     languages:
       - javascript
       - typescript
-    patterns:
-      - pattern-either:
-          - pattern: localStorage.setItem($K, $V)
-          - pattern: sessionStorage.setItem($K, $V)
+    # Only keys or values that look like credentials; preferences such as a theme are fine.
+    pattern-either:
+      - patterns:
+          - pattern-either:
+              - pattern: localStorage.setItem($K, $V)
+              - pattern: sessionStorage.setItem($K, $V)
+          - metavariable-regex:
+              metavariable: $K
+              regex: (?i).*(token|jwt|secret|passw|credential|api_?key|apikey|auth|session).*
+      - patterns:
+          - pattern-either:
+              - pattern: localStorage.setItem($K, $V)
+              - pattern: sessionStorage.setItem($K, $V)
+          - metavariable-regex:
+              metavariable: $V
+              regex: (?i).*(token|jwt|secret|passw|credential|api_?key|apikey).*
     metadata:
       category: security
       cwe: "CWE-922"

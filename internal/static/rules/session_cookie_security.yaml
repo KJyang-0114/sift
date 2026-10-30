@@ -1,17 +1,43 @@
 rules:
   - id: sift.session-cookie-no-httponly
     message: |
-      [Session Security] Cookie does not set httpOnly (XSS can steal the token).
+      [Session Security] Cookie is set without httpOnly: true (XSS can steal the token).
+    severity: WARNING
+    languages:
+      - javascript
+      - typescript
+    patterns:
+      - pattern-either:
+          - pattern: $RES.cookie($NAME, $VALUE)
+          - patterns:
+              - pattern: $RES.cookie($NAME, $VALUE, {...})
+              - pattern-not: "$RES.cookie($NAME, $VALUE, {..., httpOnly: true, ...})"
+    metadata:
+      category: security
+      cwe: "CWE-1004"
+
+  - id: sift.session-cookie-no-httponly-python
+    message: |
+      [Session Security] Cookie is set without httponly=True (XSS can steal the token).
     severity: WARNING
     languages:
       - python
-      - javascript
-      - typescript
-      - go
-      - java
-      - php
     patterns:
-      - pattern-regex: (res\.cookie\(|set_cookie\(|SetCookie\()
+      - pattern: $RESPONSE.set_cookie(...)
+      - pattern-not: $RESPONSE.set_cookie(..., httponly=True, ...)
     metadata:
       category: security
-      cwe: "CWE-614"
+      cwe: "CWE-1004"
+
+  - id: sift.session-cookie-no-httponly-go
+    message: |
+      [Session Security] Cookie is set without HttpOnly: true (XSS can steal the token).
+    severity: WARNING
+    languages:
+      - go
+    patterns:
+      - pattern: "http.SetCookie($W, &http.Cookie{...})"
+      - pattern-not: "http.SetCookie($W, &http.Cookie{..., HttpOnly: true, ...})"
+    metadata:
+      category: security
+      cwe: "CWE-1004"

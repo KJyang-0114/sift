@@ -38,7 +38,7 @@
   <rect class="card" x="300" y="76" width="310" height="110" rx="12"/>
   <rect class="blue" x="300" y="76" width="4" height="110" rx="2"/>
   <text class="h" x="324" y="110">Rules</text>
-  <text class="t" x="324" y="138">36 Semgrep rules, embedded</text>
+  <text class="t" x="324" y="138">38 Semgrep rules, embedded</text>
   <text class="t" x="324" y="162">injection · XSS · SSRF · secrets · JWT</text>
 
   <rect class="card" x="300" y="200" width="310" height="110" rx="12"/>

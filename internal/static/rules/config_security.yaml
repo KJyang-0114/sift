@@ -24,7 +24,8 @@ rules:
       - python
       - javascript
     patterns:
-      - pattern-regex: \.env\b
+      # A ".env" file name in a string literal, not process.env or os.environ.
+      - pattern-regex: (["'`])(?:[^"'`\n]*/)?\.env(?:\.[\w-]+)?\1
     metadata:
       category: config-security
 
