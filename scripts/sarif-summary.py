@@ -12,7 +12,8 @@ import sys
 def main():
     report_path, exit_code = sys.argv[1], sys.argv[2]
     output_path = sys.argv[3] if len(sys.argv) > 3 else None
-    with open(report_path, encoding="utf-8") as handle:
+    # Both paths are written by this action's own steps, not taken from scanned code.
+    with open(report_path, encoding="utf-8") as handle:  # nosemgrep: sift.path-traversal-file-op
         run = json.load(handle)["runs"][0]
     results = run.get("results", [])
     active = [r for r in results if not r.get("suppressions")]
@@ -39,7 +40,7 @@ def main():
             print(f"- {note.get('level', 'note')}: {note.get('message', {}).get('text', '')}")
 
     if output_path:
-        with open(output_path, "a", encoding="utf-8") as handle:
+        with open(output_path, "a", encoding="utf-8") as handle:  # nosemgrep: sift.path-traversal-file-op
             handle.write(f"active={len(active)}\nsuppressed={suppressed}\n")
 
 

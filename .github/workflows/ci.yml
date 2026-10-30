@@ -162,6 +162,9 @@ jobs:
           path: action-fixture
           upload-sarif: "false"
 
+      - name: Semgrep rule tests
+        run: semgrep --test --config internal/static/rules/ internal/static/testdata/rules/
+
       - name: Accept the finding in a baseline
         env:
           SIFT_LLM_PROVIDER: offline
