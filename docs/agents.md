@@ -81,5 +81,5 @@ repos:
 
 ## 注意
 
-- 掃描會把套件名稱與版本送到 OSV.dev 比對已知漏洞；離線環境設定 `SIFT_VULNERABILITIES=false`。
+- 掃描會把套件名稱與版本送到 OSV.dev 比對已知漏洞，`SIFT_VULNERABILITIES=false` 可關閉這項查詢。套件存在性檢查仍需連線各 registry；無法連線時掃描為 partial（exit 3），hook 不會因此阻擋 agent。
 - agent 的修正仍需人工審查。Sift 只確認「沒有偵測到新問題」，不代表程式碼沒有問題。
