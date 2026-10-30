@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/KJyang-0114/sift/internal/core"
+	"github.com/KJyang-0114/sift/internal/securepath"
 )
 
 // PackageVerifier verifies whether dependency packages actually exist.
@@ -56,7 +57,7 @@ func (pv *PackageVerifier) Analyze(ctx context.Context, request core.ScanRequest
 			})
 			return result
 		}
-		depFiles, err := pv.findDepFiles(target)
+		depFiles, err := pv.findDepFiles(request.Root(), target)
 		if err != nil {
 			result.Diagnostics = append(result.Diagnostics, core.Diagnostic{
 				Kind: core.DiagnosticTarget, Severity: core.DiagnosticWarning,
@@ -114,8 +115,21 @@ func (pv *PackageVerifier) Analyze(ctx context.Context, request core.ScanRequest
 	return result
 }
 
-// findDepFiles locates dependency files in the target directory.
-func (pv *PackageVerifier) findDepFiles(target string) ([]DepFile, error) {
+// manifestParsers maps dependency manifest names to their ecosystem and parser.
+var manifestParsers = map[string]struct {
+	ecosystem string
+	parse     func([]byte) []string
+}{
+	"package.json":     {"npm", parsePackageJSON},
+	"requirements.txt": {"pypi", parseRequirementsTxt},
+	"Pipfile":          {"pypi", parsePipfile},
+	"Cargo.toml":       {"cargo", parseCargoToml},
+	"go.mod":           {"go", parseGoMod},
+}
+
+// findDepFiles locates dependency manifests under target. Only regular files are
+// read, through a root-bound read, so links cannot pull in files outside root.
+func (pv *PackageVerifier) findDepFiles(root, target string) ([]DepFile, error) {
 	var depFiles []DepFile
 
 	err := filepath.Walk(target, func(path string, info os.FileInfo, err error) error {
@@ -134,38 +148,20 @@ func (pv *PackageVerifier) findDepFiles(target string) ([]DepFile, error) {
 			return nil
 		}
 
-		base := filepath.Base(path)
-		switch base {
-		case "package.json":
-			pkgs := parsePackageJSON(path)
-			if len(pkgs) > 0 {
-				depFiles = append(depFiles, DepFile{Path: path, Ecosystem: "npm", Packages: pkgs})
-			}
-
-		case "requirements.txt":
-			pkgs := parseRequirementsTxt(path)
-			if len(pkgs) > 0 {
-				depFiles = append(depFiles, DepFile{Path: path, Ecosystem: "pypi", Packages: pkgs})
-			}
-
-		case "Pipfile":
-			// Pipfile uses TOML format, simplified parsing
-			pkgs := parsePipfile(path)
-			if len(pkgs) > 0 {
-				depFiles = append(depFiles, DepFile{Path: path, Ecosystem: "pypi", Packages: pkgs})
-			}
-
-		case "Cargo.toml":
-			pkgs := parseCargoToml(path)
-			if len(pkgs) > 0 {
-				depFiles = append(depFiles, DepFile{Path: path, Ecosystem: "cargo", Packages: pkgs})
-			}
-
-		case "go.mod":
-			pkgs := parseGoMod(path)
-			if len(pkgs) > 0 {
-				depFiles = append(depFiles, DepFile{Path: path, Ecosystem: "go", Packages: pkgs})
-			}
+		manifest, ok := manifestParsers[filepath.Base(path)]
+		if !ok || !info.Mode().IsRegular() {
+			return nil
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil
+		}
+		data, err := securepath.ReadFile(root, relative)
+		if err != nil {
+			return nil
+		}
+		if pkgs := manifest.parse(data); len(pkgs) > 0 {
+			depFiles = append(depFiles, DepFile{Path: path, Ecosystem: manifest.ecosystem, Packages: pkgs})
 		}
 		return nil
 	})
@@ -348,11 +344,7 @@ func retryAfterDelay(value string, now time.Time) (time.Duration, bool) {
 
 // ── Dependency File Parsers ──
 
-func parsePackageJSON(path string) []string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
+func parsePackageJSON(data []byte) []string {
 
 	var pkg struct {
 		Dependencies     map[string]string `json:"dependencies"`
@@ -376,11 +368,7 @@ func parsePackageJSON(path string) []string {
 	return pkgs
 }
 
-func parseRequirementsTxt(path string) []string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
+func parseRequirementsTxt(data []byte) []string {
 
 	var pkgs []string
 	for _, line := range strings.Split(string(data), "\n") {
@@ -401,11 +389,7 @@ func parseRequirementsTxt(path string) []string {
 	return pkgs
 }
 
-func parsePipfile(path string) []string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
+func parsePipfile(data []byte) []string {
 
 	var pkgs []string
 	inPackages := false
@@ -429,11 +413,7 @@ func parsePipfile(path string) []string {
 	return pkgs
 }
 
-func parseCargoToml(path string) []string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
+func parseCargoToml(data []byte) []string {
 
 	var pkgs []string
 	inDeps := false
@@ -458,11 +438,7 @@ func parseCargoToml(path string) []string {
 	return pkgs
 }
 
-func parseGoMod(path string) []string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
+func parseGoMod(data []byte) []string {
 	var packages []string
 	inRequire := false
 	seen := make(map[string]bool)

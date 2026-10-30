@@ -40,7 +40,11 @@ exclude example.com/removed v1.0.0
 		t.Fatal(err)
 	}
 	want := []string{"example.com/single", "github.com/BurntSushi/toml", "example.com/quoted"}
-	if got := parseGoMod(path); !reflect.DeepEqual(got, want) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := parseGoMod(data); !reflect.DeepEqual(got, want) {
 		t.Fatalf("modules=%#v want=%#v", got, want)
 	}
 }
@@ -266,5 +270,38 @@ func TestPackageVerifierConfirmedMissingPackageBuildsEvidenceBackedFinding(t *te
 	}
 	if finding.Confidence != core.ConfidenceHigh || len(finding.Evidence) != 1 || finding.Evidence[0].Kind != core.EvidenceDependency {
 		t.Fatalf("finding lacks dependency evidence: %#v", finding)
+	}
+}
+
+func TestPackageVerifierReadsOnlyRegularManifestsInsideRoot(t *testing.T) {
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "notes.txt"), []byte("outside-only-line\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	if err := os.Symlink(filepath.Join(outside, "notes.txt"), filepath.Join(root, "requirements.txt")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "app", "requirements.txt"), []byte("requests==2.31.0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var requested []string
+	verifier := newPackageVerifier(&http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requested = append(requested, request.URL.Path)
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Header: make(http.Header), Request: request}, nil
+	})})
+	request, err := core.NewScanRequest(root, []string{"."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := verifier.Analyze(context.Background(), request)
+	if len(result.Findings) != 0 || len(result.Diagnostics) != 0 {
+		t.Fatalf("result=%+v", result)
+	}
+	if !reflect.DeepEqual(requested, []string{"/pypi/requests/json"}) {
+		t.Fatalf("registry requests=%v; linked manifest outside root must not be read", requested)
 	}
 }
