@@ -64,6 +64,8 @@ Analyzer 以 goroutine 並行，結果依原始 index 回填。Worker pool 控�
 
 ## 使用方式
 
+不想自行安裝 Semgrep，可直接用 Docker image：`docker run --rm -v "$PWD:/src" ghcr.io/kjyang-0114/sift:latest scan .`。Windows 用 `install.ps1`；GitLab 與其他 CI 見 [docs/ci](docs/ci/README.md)。
+
 ```bash
 pip install semgrep
 go build -o sift ./cmd/sift
