@@ -3,7 +3,7 @@ rules:
     message: |
       [Public-Facing Deployment] This Express app registers no rate limiter in this file.
       Add express-rate-limit (or an equivalent limiter) before deploying to the public internet.
-    severity: INFO
+    severity: LOW
     languages:
       - javascript
       - typescript
@@ -27,4 +27,5 @@ rules:
           ...
           $APP.use(..., $LIMITER, ...);
     metadata:
+      confidence: MEDIUM
       category: deployment-security

@@ -3,7 +3,7 @@ rules:
     message: |
       [NoSQL Injection] User input is passed directly into a MongoDB query, which may bypass authentication or exfiltrate data.
       Use $eq to explicitly specify the comparison operator, or use Mongoose schema validation.
-    severity: ERROR
+    severity: HIGH
     languages:
       - javascript
       - typescript
@@ -25,6 +25,7 @@ rules:
           - pattern: |
               $COLLECTION.deleteMany({$KEY: $INPUT})
     metadata:
+      confidence: MEDIUM
       category: security
       cwe: "CWE-943"
       owasp: "A03:2021 - Injection"

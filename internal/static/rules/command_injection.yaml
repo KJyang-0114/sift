@@ -3,7 +3,7 @@ rules:
     message: |
       [Command Injection] Shell command execution detected.
       Avoid shell=True; use argument arrays or strictly validate input.
-    severity: ERROR
+    severity: HIGH
     languages:
       - python
       - javascript
@@ -15,5 +15,6 @@ rules:
     patterns:
       - pattern-regex: (os\.system\s*\(|subprocess\.[A-Za-z_]+\s*\([^\n]*shell\s*=\s*True|child_process\.exec\s*\(|shell_exec\s*\()
     metadata:
+      confidence: MEDIUM
       category: security
       cwe: "CWE-78"

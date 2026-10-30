@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/terminal-demo.svg" alt="Sift 擋下新的 command injection 與有漏洞的 lodash 版本，並隱藏 14 個已接受的問題" width="820">
+  <img src="assets/terminal-demo.svg" alt="Sift 擋下新的 SQL injection 與有漏洞的 lodash 版本，並隱藏 14 個已接受的問題" width="820">
 </p>
 
 ## 為什麼用 Sift

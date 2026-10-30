@@ -3,7 +3,7 @@ rules:
     message: |
       [SSTI] User input is passed to a template engine, which may lead to Server-Side Template Injection.
       Attackers can execute arbitrary code. Use sandbox mode or treat input as data rather than as a template.
-    severity: ERROR
+    severity: HIGH
     languages:
       - python
       - javascript
@@ -24,6 +24,7 @@ rules:
           - pattern: |
               $TEMPLATE.Execute($WRITER, $INPUT)
     metadata:
+      confidence: LOW
       category: security
       cwe: "CWE-1336"
 
@@ -31,7 +32,7 @@ rules:
     message: |
       [Format String Attack] Using .format() or % to format strings containing user input.
       This may lead to information disclosure in certain Python versions.
-    severity: WARNING
+    severity: LOW
     languages:
       - python
     patterns:
@@ -41,5 +42,6 @@ rules:
           - pattern: |
               $STRING % $INPUT
     metadata:
+      confidence: LOW
       category: security
       cwe: "CWE-134"

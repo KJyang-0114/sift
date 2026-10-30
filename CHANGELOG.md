@@ -4,6 +4,7 @@
 
 ### Rules
 
+- Calibrate every built-in rule with an explicit severity and `metadata.confidence`; heuristic rules report with low confidence instead of blocking. `--min-confidence` now defaults to `medium`, and legacy `ERROR`/`WARNING`/`INFO` levels map to high/medium/low.
 - Fix rules that reported correct code: `rate-limit-missing` now flags Express apps without a limiter (it flagged apps that had one), `session-cookie-no-httponly` skips cookies with `httpOnly: true`, and `error-unhandled-rejection` flags handlers that discard the error instead of every `process.on`.
 - Narrow `config-env-file` to `.env` file names (not `process.env`), `error-stack-trace-leak` to error details sent to clients (it now also catches Go `http.Error(w, err.Error(), …)`), `frontend-localStorage` to credential-like keys or values, and `path-traversal-file-op` to paths not anchored to a literal or the program's own location.
 - Add `session-cookie-no-httponly-python` and `session-cookie-no-httponly-go`. Every changed rule has `semgrep --test` cases.

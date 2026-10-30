@@ -258,9 +258,10 @@ type semgrepFinding struct {
 		Severity string `json:"severity"`
 		Lines    string `json:"lines"`
 		Metadata struct {
-			Category string `json:"category"`
-			CWE      string `json:"cwe"`
-			OWASP    string `json:"owasp"`
+			Category   string `json:"category"`
+			CWE        string `json:"cwe"`
+			OWASP      string `json:"owasp"`
+			Confidence string `json:"confidence"`
 		} `json:"metadata"`
 	} `json:"extra"`
 }
@@ -332,7 +333,7 @@ func parseSemgrepOutput(output []byte, request core.ScanRequest) ([]core.Finding
 		}
 		finding, err := core.NewFinding(core.FindingInput{
 			Source: "semgrep", Rule: normalizeCheckID(r.CheckID), Message: strings.TrimSpace(r.Extra.Message),
-			Severity: severity, Category: category, Confidence: core.ConfidenceHigh,
+			Severity: severity, Category: category, Confidence: mapSemgrepConfidence(r.Extra.Metadata.Confidence),
 			Location: core.Location{
 				Path: relativePath, Line: r.Start.Line, Column: r.Start.Col,
 				EndLine: r.End.Line, EndColumn: r.End.Col,
@@ -394,15 +395,33 @@ func splitCommaTargets(target string) []string {
 	return result
 }
 
+// mapSemgrepSeverity reads the impact each rule declares. Rules use Semgrep's
+// CRITICAL/HIGH/MEDIUM/LOW levels; the legacy ERROR/WARNING/INFO levels map one
+// step lower than before, so unreviewed rules no longer default to critical.
 func mapSemgrepSeverity(s string) core.Severity {
 	switch strings.ToUpper(s) {
-	case "ERROR":
+	case "CRITICAL":
 		return core.SeverityCritical
-	case "WARNING":
+	case "HIGH", "ERROR":
 		return core.SeverityHigh
-	case "INFO":
+	case "MEDIUM", "WARNING":
 		return core.SeverityMedium
+	case "LOW", "INFO":
+		return core.SeverityLow
 	default:
 		return core.SeverityLow
+	}
+}
+
+// mapSemgrepConfidence reads metadata.confidence: how reliably a match is a real
+// issue. Lexical heuristics declare LOW so they report without blocking gates.
+func mapSemgrepConfidence(s string) core.Confidence {
+	switch strings.ToUpper(strings.TrimSpace(s)) {
+	case "HIGH":
+		return core.ConfidenceHigh
+	case "LOW":
+		return core.ConfidenceLow
+	default:
+		return core.ConfidenceMedium
 	}
 }

@@ -3,7 +3,7 @@ rules:
     message: |
       [SSRF] User input is passed directly to an HTTP request URL, which may lead to Server-Side Request Forgery.
       Validate that the target URL is in an allowlist, or block internal IPs (127.0.0.1, 10.x, 192.168.x).
-    severity: ERROR
+    severity: HIGH
     languages:
       - python
       - javascript
@@ -27,6 +27,7 @@ rules:
                   regex: (?i)^(httpx|session|sess|client|http_client|http|https|axios|got|ky|superagent|urllib3|aiohttp)$
               - pattern-not: $HTTP.get("...")
     metadata:
+      confidence: LOW
       category: security
       cwe: "CWE-918"
       owasp: "A10:2021 - Server-Side Request Forgery"
@@ -34,7 +35,7 @@ rules:
   - id: sift.ssrf-url-construction
     message: |
       [SSRF] URL is constructed from user input; attackers can control the request target.
-    severity: WARNING
+    severity: HIGH
     languages:
       - python
       - javascript
@@ -49,5 +50,6 @@ rules:
               ...
               requests.get($URL)
     metadata:
+      confidence: MEDIUM
       category: security
       cwe: "CWE-918"

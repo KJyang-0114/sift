@@ -4,7 +4,7 @@ rules:
       [File Upload Security] File upload does not validate file type, size, or content.
       Attackers can upload web shells or malicious executables.
       Validate MIME type, enforce a file extension allowlist, and set a file size limit.
-    severity: ERROR
+    severity: HIGH
     languages:
       - python
       - javascript
@@ -23,6 +23,7 @@ rules:
           - pattern: |
               shutil.copy($SRC, $DST)
     metadata:
+      confidence: LOW
       category: security
       cwe: "CWE-434"
       owasp: "A03:2021 - Injection"
@@ -31,7 +32,7 @@ rules:
     message: |
       [File Upload Security] Upload file path is controlled by user input.
       Attackers can exploit path traversal to overwrite system files.
-    severity: ERROR
+    severity: HIGH
     languages:
       - python
       - javascript
@@ -44,5 +45,6 @@ rules:
           - pattern: |
               $FILE.save($REQ.body.$FIELD)
     metadata:
+      confidence: MEDIUM
       category: security
       cwe: "CWE-22"

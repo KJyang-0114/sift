@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/terminal-demo.svg" alt="Sift blocks a new command injection and a vulnerable lodash version while hiding 14 accepted findings" width="820">
+  <img src="assets/terminal-demo.svg" alt="Sift blocks a new SQL injection and a vulnerable lodash version while hiding 14 accepted findings" width="820">
 </p>
 
 ## Why Sift

@@ -183,7 +183,7 @@ current findings. Reports are always written before the exit code is returned.`,
 	command.Flags().StringVar(&diffRef, "diff", "", "scan tracked changes against a commit (default: HEAD; excludes untracked/deleted files)")
 	command.Flags().Lookup("diff").NoOptDefVal = "HEAD"
 	command.Flags().StringVar(&failOn, "fail-on", "none", "exit 1 when an unsuppressed finding reaches this severity (critical|high|medium|low|info|none)")
-	command.Flags().StringVar(&minConfidence, "min-confidence", "low", "minimum finding confidence counted by --fail-on (high|medium|low)")
+	command.Flags().StringVar(&minConfidence, "min-confidence", "medium", "minimum finding confidence counted by --fail-on (high|medium|low)")
 	command.Flags().StringVar(&baselinePath, "baseline", "", "suppress findings accepted in this baseline file")
 	command.Flags().StringVar(&writeBaselinePath, "write-baseline", "", "write all current findings to this baseline file (keeps reasons from --baseline)")
 	command.Flags().StringVarP(&outputPath, "output", "o", "", "write the --format report to this file and show the terminal report on stdout")

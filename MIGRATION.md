@@ -1,5 +1,25 @@
 # Migration Guide
 
+## Severity and confidence calibration (unreleased)
+
+Each built-in rule now declares its impact (`severity: CRITICAL|HIGH|MEDIUM|LOW`)
+and how reliably a match is a real issue (`metadata.confidence: HIGH|MEDIUM|LOW`).
+Previously every Semgrep finding had `high` confidence and severity came from a
+global map (`ERROR` critical, `WARNING` high, `INFO` medium).
+
+- Lexical or broad rules such as `path-traversal-file-op`, `ssrf-http-request`
+  and `frontend-dangerouslySetInnerHTML` keep their impact but have `low`
+  confidence, so they appear in reports without failing `--fail-on`.
+- Precise matches such as hard-coded AWS keys and private keys are `critical`
+  with `high` confidence.
+- `--min-confidence` now defaults to `medium` (was `low`), matching the GitHub
+  Action and hooks. Pass `--min-confidence low` to gate on heuristics as well.
+- Custom rules with legacy levels map one step lower: `ERROR` high, `WARNING`
+  medium, `INFO` low. A missing `metadata.confidence` means `medium`.
+
+Severity changes alter which findings `--fail-on` blocks; finding IDs and
+baseline keys do not change.
+
 ## Rule accuracy fixes (unreleased)
 
 Seven rules changed what they match; see CHANGELOG for details. Findings that
@@ -43,7 +63,7 @@ New `scan` flags; defaults keep previous behavior (findings advisory, exit 0).
 | Flag | Behavior |
 |---|---|
 | `--fail-on SEVERITY` | Exit `1` when an unsuppressed finding is at or above `critical`, `high`, `medium`, `low` or `info`. Default `none`. |
-| `--min-confidence LEVEL` | Only findings at or above `high`, `medium` or `low` count toward the gate. Default `low`. |
+| `--min-confidence LEVEL` | Only findings at or above `high`, `medium` or `low` count toward the gate. Default `medium`. |
 | `--baseline FILE` | Mark findings listed in FILE as suppressed. FILE must be inside the working directory; missing, invalid or escaping paths (including symlinks) exit `2`. |
 | `--write-baseline FILE` | Atomically write every current finding to FILE (inside the working directory), then apply it. Reasons from `--baseline` are kept. |
 | `--output FILE`, `-o` | Write the `--format` report to FILE atomically and show the terminal report on stdout (unless `--quiet`). Write failures exit `4`. |

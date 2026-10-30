@@ -4,7 +4,7 @@ rules:
       [GraphQL Security] GraphQL introspection is enabled in production.
       Attackers can enumerate all available queries and fields via introspection.
       Disable introspection in production environments.
-    severity: WARNING
+    severity: MEDIUM
     languages:
       - javascript
       - typescript
@@ -16,6 +16,7 @@ rules:
           - pattern: |
               graphqlHTTP({schema: $SCHEMA})
     metadata:
+      confidence: MEDIUM
       category: security
       cwe: "CWE-200"
 
@@ -23,7 +24,7 @@ rules:
     message: |
       [GraphQL Security] No query depth limit is set; attackers can launch DoS attacks via deeply nested queries.
       Use graphql-depth-limit or graphql-query-complexity to limit query complexity.
-    severity: WARNING
+    severity: MEDIUM
     languages:
       - javascript
       - typescript
@@ -34,13 +35,14 @@ rules:
           - pattern: |
               ApolloServer({schema: $SCHEMA})
     metadata:
+      confidence: LOW
       category: security
       cwe: "CWE-400"
 
   - id: sift.graphql-batch-attack
     message: |
       [GraphQL Security] Batch request count is not limited; attackers can send many aliased queries to bypass rate limiting.
-    severity: WARNING
+    severity: MEDIUM
     languages:
       - javascript
       - typescript
@@ -48,4 +50,5 @@ rules:
       - pattern: |
           batch: true
     metadata:
+      confidence: MEDIUM
       category: security

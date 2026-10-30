@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/terminal-demo.svg" alt="Sift が新しいコマンドインジェクションと脆弱な lodash をブロックし、受け入れ済みの 14 件を非表示にしている" width="820">
+  <img src="assets/terminal-demo.svg" alt="Sift が新しい SQL インジェクションと脆弱な lodash をブロックし、受け入れ済みの 14 件を非表示にしている" width="820">
 </p>
 
 ## Sift を使う理由

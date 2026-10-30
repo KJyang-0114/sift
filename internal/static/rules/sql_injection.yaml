@@ -3,7 +3,7 @@ rules:
     message: |
       [SQL Injection] SQL query is built using string concatenation.
       Use parameterized queries instead.
-    severity: ERROR
+    severity: CRITICAL
     languages:
       - python
       - javascript
@@ -13,5 +13,6 @@ rules:
     patterns:
       - pattern-regex: (execute\(|query\(|Query\(|\.execute\().*\+.*\)
     metadata:
+      confidence: MEDIUM
       category: security
       cwe: "CWE-89"

@@ -3,7 +3,7 @@ rules:
     message: |
       [Config] CORS is set to wildcard (*), allowing any origin.
       Specify an explicit allowlist of origins.
-    severity: WARNING
+    severity: MEDIUM
     languages:
       - python
       - javascript
@@ -13,13 +13,14 @@ rules:
     patterns:
       - pattern-regex: (Access-Control-Allow-Origin:\s*\*|cors\(\{origin:\s*'\*')
     metadata:
+      confidence: HIGH
       category: config-security
       cwe: "CWE-942"
 
   - id: sift.config-env-file
     message: |
       [Config] .env file may be exposed during deployment.
-    severity: MEDIUM
+    severity: LOW
     languages:
       - python
       - javascript
@@ -27,12 +28,13 @@ rules:
       # A ".env" file name in a string literal, not process.env or os.environ.
       - pattern-regex: (["'`])(?:[^"'`\n]*/)?\.env(?:\.[\w-]+)?\1
     metadata:
+      confidence: LOW
       category: config-security
 
   - id: sift.config-debug-mode
     message: |
       [Config] DEBUG mode may be enabled in production.
-    severity: ERROR
+    severity: MEDIUM
     languages:
       - python
       - javascript
@@ -40,5 +42,6 @@ rules:
     patterns:
       - pattern-regex: (DEBUG\s*=\s*True|debug=True|NODE_ENV\s*=\s*development)
     metadata:
+      confidence: MEDIUM
       category: security
       cwe: "CWE-489"

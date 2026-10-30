@@ -3,7 +3,7 @@ rules:
     message: |
       [XSS] User input is written directly to the HTTP response.
       Use HTML entity encoding or a secure template engine.
-    severity: ERROR
+    severity: HIGH
     languages:
       - python
       - javascript
@@ -14,6 +14,7 @@ rules:
     patterns:
       - pattern-regex: (\.send\(.*req\.|echo \$_GET|echo \$_POST|HttpResponse\(.*request\.|innerHTML\s*=)
     metadata:
+      confidence: MEDIUM
       category: security
       cwe: "CWE-79"
       owasp: "A03:2021 - Injection"

@@ -3,7 +3,7 @@ rules:
     message: |
       [Insecure Deserialization] Use of unsafe deserialization functions detected.
       pickle/yaml.load can execute arbitrary code; use safe alternatives instead (json, yaml.safe_load).
-    severity: ERROR
+    severity: HIGH
     languages:
       - python
       - ruby
@@ -24,6 +24,7 @@ rules:
           - pattern: eval($INPUT)
           - pattern: $OBJECT.readObject()
     metadata:
+      confidence: MEDIUM
       category: security
       cwe: "CWE-502"
       owasp: "A08:2021 - Software and Data Integrity Failures"

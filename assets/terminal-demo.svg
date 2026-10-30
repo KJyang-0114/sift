@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" width="900" height="520" role="img" aria-labelledby="title desc">
   <title id="title">Sift terminal output</title>
-  <desc id="desc">A scan with a baseline hides 14 accepted findings and reports two new ones: a shell command injection and a lodash dependency with CVE-2021-23337. The fail-on high gate blocks the scan with exit code 1.</desc>
+  <desc id="desc">A scan with a baseline hides 14 accepted findings and reports two new ones: a SQL injection and a lodash dependency with CVE-2021-23337. The fail-on high gate blocks the scan with exit code 1.</desc>
   <style>
     .bg { fill: #0d1117; }
     .bar { fill: #161b22; }
@@ -34,11 +34,11 @@
   <text x="24" y="170"><tspan class="crit">● Critical: 1</tspan><tspan>   </tspan><tspan class="high">● High: 1</tspan><tspan class="dim">   ● Medium: 0   ● Low: 0</tspan></text>
   <text class="rule" x="24" y="192">────────────────────────────────────────────────────────────────────────────────────────────</text>
 
-  <text x="24" y="226"><tspan class="crit">● CRITICAL</tspan><tspan class="title">  sift.command-injection-shell</tspan></text>
-  <text x="48" y="250"><tspan class="key">File   </tspan>api/export.py:42</text>
-  <text x="48" y="272"><tspan class="key">Code   </tspan>subprocess.call(cmd, shell=True)</text>
-  <text x="48" y="294"><tspan class="key">Issue  </tspan>Shell command execution with user input</text>
-  <text x="48" y="316"><tspan class="key">CWE    </tspan>CWE-78</text>
+  <text x="24" y="226"><tspan class="crit">● CRITICAL</tspan><tspan class="title">  sift.sql-injection-concat</tspan></text>
+  <text x="48" y="250"><tspan class="key">File   </tspan>api/orders.py:42</text>
+  <text x="48" y="272"><tspan class="key">Code   </tspan>db.execute("SELECT * FROM orders WHERE id = " + order_id)</text>
+  <text x="48" y="294"><tspan class="key">Issue  </tspan>SQL built by string concatenation</text>
+  <text x="48" y="316"><tspan class="key">CWE    </tspan>CWE-89</text>
 
   <text x="24" y="350"><tspan class="high">● HIGH</tspan><tspan class="title">  sift.vulnerable-dependency</tspan></text>
   <text x="48" y="374"><tspan class="key">File   </tspan>package-lock.json:318</text>

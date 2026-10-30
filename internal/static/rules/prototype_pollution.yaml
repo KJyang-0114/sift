@@ -4,7 +4,7 @@ rules:
       [Prototype Pollution] Deep-merging user-supplied objects may pollute Object.prototype.
       Attackers can inject __proto__ or constructor properties to tamper with global object behavior.
       Use safe merge utilities (e.g., lodash.merge with safe mode, or Object.assign for shallow copies).
-    severity: ERROR
+    severity: HIGH
     languages:
       - javascript
       - typescript
@@ -19,6 +19,7 @@ rules:
           - pattern: |
               Object.assign($TARGET, $INPUT)
     metadata:
+      confidence: LOW
       category: security
       cwe: "CWE-1321"
 
@@ -26,7 +27,7 @@ rules:
     message: |
       [Prototype Pollution] JSON.parse does not trigger prototype pollution directly, but risks remain if the result is used in recursive merges.
       Filter keys on all external JSON input (strip __proto__, constructor, prototype).
-    severity: WARNING
+    severity: MEDIUM
     languages:
       - javascript
       - typescript
@@ -34,4 +35,5 @@ rules:
       - pattern: |
           $DATA = JSON.parse($REQ.body)
     metadata:
+      confidence: LOW
       category: security

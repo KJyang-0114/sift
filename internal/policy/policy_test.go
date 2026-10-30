@@ -219,7 +219,8 @@ func TestGateBlockingRespectsThresholdsAndSuppression(t *testing.T) {
 		want               []string
 	}{
 		{"none", "", nil},
-		{"high", "", []string{"a", "b"}},
+		{"high", "", []string{"b"}}, // default min-confidence is medium: the low-confidence critical reports only
+		{"high", "low", []string{"a", "b"}},
 		{"high", "high", []string{"b"}},
 		{"medium", "medium", []string{"b", "c"}},
 		{"info", "low", []string{"a", "b", "c"}},

@@ -3,6 +3,7 @@ package static
 import (
 	"encoding/json"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -25,7 +26,7 @@ func TestParseSemgrepOutputBuildsFindingV2(t *testing.T) {
 				"message":  "User input reaches SQL",
 				"severity": "WARNING",
 				"lines":    "db.Query(input)",
-				"metadata": map[string]any{"category": "security", "cwe": "CWE-89", "owasp": "A03:2021"},
+				"metadata": map[string]any{"category": "security", "cwe": "CWE-89", "owasp": "A03:2021", "confidence": "HIGH"},
 			},
 		}},
 	})
@@ -47,8 +48,8 @@ func TestParseSemgrepOutputBuildsFindingV2(t *testing.T) {
 	if finding.Location.Path != "src/app.go" || finding.Location.Line != 7 || finding.Location.EndColumn != 18 {
 		t.Fatalf("unexpected location: %#v", finding.Location)
 	}
-	if finding.Confidence != core.ConfidenceHigh {
-		t.Fatalf("confidence = %q, want high", finding.Confidence)
+	if finding.Confidence != core.ConfidenceHigh || finding.Severity != core.SeverityMedium {
+		t.Fatalf("confidence=%q severity=%q, want high/medium", finding.Confidence, finding.Severity)
 	}
 	if len(finding.Evidence) != 1 || finding.Evidence[0].Kind != core.EvidenceCode || finding.Evidence[0].Snippet != "db.Query(input)" {
 		t.Fatalf("unexpected evidence: %#v", finding.Evidence)
@@ -168,5 +169,55 @@ func TestNormalizeCheckIDRemovesRandomRulesDirectory(t *testing.T) {
 		if got := normalizeCheckID(input); got != want {
 			t.Errorf("normalizeCheckID(%q)=%q want %q", input, got, want)
 		}
+	}
+}
+
+func TestSemgrepSeverityAndConfidenceMapping(t *testing.T) {
+	severities := map[string]core.Severity{
+		"CRITICAL": core.SeverityCritical, "HIGH": core.SeverityHigh, "ERROR": core.SeverityHigh,
+		"MEDIUM": core.SeverityMedium, "WARNING": core.SeverityMedium,
+		"LOW": core.SeverityLow, "INFO": core.SeverityLow, "": core.SeverityLow,
+	}
+	for input, want := range severities {
+		if got := mapSemgrepSeverity(input); got != want {
+			t.Errorf("mapSemgrepSeverity(%q)=%s want %s", input, got, want)
+		}
+	}
+	confidences := map[string]core.Confidence{
+		"HIGH": core.ConfidenceHigh, "medium": core.ConfidenceMedium, "LOW": core.ConfidenceLow, "": core.ConfidenceMedium,
+	}
+	for input, want := range confidences {
+		if got := mapSemgrepConfidence(input); got != want {
+			t.Errorf("mapSemgrepConfidence(%q)=%s want %s", input, got, want)
+		}
+	}
+}
+
+// Every embedded rule states its impact and how reliable a match is, so the
+// --fail-on/--min-confidence gate never depends on a legacy default.
+func TestEmbeddedRulesDeclareSeverityAndConfidence(t *testing.T) {
+	ruleStart := regexp.MustCompile(`(?m)^  - id: (\S+)$`)
+	severity := regexp.MustCompile(`(?m)^    severity: (CRITICAL|HIGH|MEDIUM|LOW)$`)
+	confidence := regexp.MustCompile(`(?m)^      confidence: (HIGH|MEDIUM|LOW)$`)
+	count := 0
+	for name, content := range embeddedRules {
+		starts := ruleStart.FindAllStringSubmatchIndex(content, -1)
+		for i, match := range starts {
+			end := len(content)
+			if i+1 < len(starts) {
+				end = starts[i+1][0]
+			}
+			block, id := content[match[0]:end], content[match[2]:match[3]]
+			count++
+			if !severity.MatchString(block) {
+				t.Errorf("%s %s: severity must be CRITICAL, HIGH, MEDIUM or LOW", name, id)
+			}
+			if !confidence.MatchString(block) {
+				t.Errorf("%s %s: metadata.confidence must be HIGH, MEDIUM or LOW", name, id)
+			}
+		}
+	}
+	if count == 0 {
+		t.Fatal("no embedded rules found")
 	}
 }
