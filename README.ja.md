@@ -142,6 +142,7 @@ jobs:
 export SIFT_LLM_PROVIDER=anthropic
 export SIFT_LLM_API_KEY=sk-ant-xxx
 export SIFT_LLM_MODEL=claude-sonnet-4-6
+export SIFT_VULNERABILITIES=false   # 任意：OSV.dev への脆弱性照会を無効化
 
 sift scan .
 ```
@@ -150,6 +151,7 @@ sift scan .
 
 - **静的セキュリティスキャン**：SQL インジェクション、XSS、コマンドインジェクション、ハードコードされたシークレット
 - **幻覚パッケージ検出**：依存パッケージが NPM / PyPI / Cargo レジストリに実在するか検証
+- **既知脆弱性の照合**：lockfile の正確なバージョンを OSV.dev（GHSA、PyPA、Go、RustSec、悪意あるパッケージ）で照合し、CISA KEV で実際の悪用が確認された CVE は critical に引き上げ
 - **LLM 意味解析**：ロジックエラーとプロンプトインジェクションリスクを検出
 - **自動テスト生成**：AST + LLM の二層エッジケーステスト生成
 - **実験的な動的実行**：現在の Orbital はホストプロセスと一時ディレクトリで生成テストを実行します。コンテナ隔離と明示的な実行ポリシーは未実装です。

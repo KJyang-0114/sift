@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -97,6 +98,12 @@ func (c *Config) applyEnvOverrides() {
 	}
 	if v := os.Getenv("SIFT_LLM_MODEL"); v != "" {
 		c.LLM.Model = v
+	}
+	switch strings.ToLower(os.Getenv("SIFT_VULNERABILITIES")) {
+	case "0", "false", "off", "no":
+		c.Vulns.Enabled = false
+	case "1", "true", "on", "yes":
+		c.Vulns.Enabled = true
 	}
 }
 

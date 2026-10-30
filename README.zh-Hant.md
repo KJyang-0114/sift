@@ -142,6 +142,7 @@ jobs:
 export SIFT_LLM_PROVIDER=anthropic
 export SIFT_LLM_API_KEY=sk-ant-xxx
 export SIFT_LLM_MODEL=claude-sonnet-4-6
+export SIFT_VULNERABILITIES=false   # 選用：關閉 OSV.dev 漏洞查詢
 
 sift scan .
 ```
@@ -150,6 +151,7 @@ sift scan .
 
 - **靜態安全掃描**：SQL Injection、XSS、Command Injection、Hardcoded Secrets
 - **幻覺套件檢測**：驗證依賴是否真實存在於 NPM / PyPI / Cargo 註冊表
+- **已知漏洞比對**：以 lockfile 精確版本查詢 OSV.dev（GHSA、PyPA、Go、RustSec、惡意套件），CISA KEV 已遭利用的 CVE 自動升為 critical
 - **LLM 語意分析**：偵測邏輯錯誤、Prompt Injection 風險
 - **自動測試生成**：AST + LLM 雙層推導邊界測試用例
 - **實驗性動態執行**：目前 Orbital 使用主機程序與暫存目錄執行生成測試；容器隔離與明確執行政策仍待實作。

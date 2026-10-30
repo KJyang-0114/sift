@@ -1,5 +1,29 @@
 # Migration Guide
 
+## Dependency vulnerability lookups (unreleased)
+
+A new `vulnerability-db` analyzer reads exact versions from `package-lock.json`,
+`npm-shrinkwrap.json`, `poetry.lock`, `uv.lock`, `Pipfile.lock`, pinned
+`requirements*.txt`, `Cargo.lock` and `go.mod`, and queries OSV.dev for published
+advisories. It is enabled by default and sends package names and versions to
+`api.osv.dev`; when an advisory has a CVE alias it also downloads the CISA KEV catalog.
+
+| Item | Behavior |
+|---|---|
+| Rules | `sift.vulnerable-dependency` (category `vulnerable-dependency`), `sift.malicious-package` for OSV `MAL-*` records (critical) |
+| Severity | GitHub-reviewed label, then CVSS v3 base score, otherwise `medium`; any CVE in CISA KEV is `critical` and prefixed `[Known Exploited]` |
+| Location | Lockfile path and the dependency's line when it can be located |
+| Aliases | Records that alias each other (GHSA, PYSEC, CVE) produce one finding |
+| `osv.unavailable` | Error diagnostic; the scan is `partial` (exit 3) |
+| `kev.unavailable` | Warning diagnostic; findings are kept without exploitation priority |
+| `vulnerability-db.unpinned` | Info diagnostic counting dependencies without exact versions |
+
+Disable with `[vulnerabilities] enabled = false` or `SIFT_VULNERABILITIES=false`
+(for example, air-gapped CI). Explicit config files that previously rejected the
+unknown `[vulnerabilities]` table now accept it.
+
+Rollback: set `SIFT_VULNERABILITIES=false`; no stored data changes.
+
 ## Configuration validation follow-up (unreleased)
 
 Both `scan` and `fix` reject invalid timeout, concurrency, sandbox, output format,

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Known vulnerabilities
+
+- Match exact lockfile versions (npm, PyPI, Go, crates.io) against OSV.dev advisories, including OpenSSF malicious-package records.
+- Raise CVEs listed in the CISA Known Exploited Vulnerabilities catalog to critical with `[Known Exploited]` evidence.
+- Merge aliased advisories into one finding and recommend the fix for the installed release line.
+- Report OSV outages as partial scans; disable lookups with `[vulnerabilities] enabled = false` or `SIFT_VULNERABILITIES=false`.
+
 ## v1.5.0 — 2026-09-09
 
 This release advances from v0.1.1 to the requested v1.5.0 release line.

@@ -26,6 +26,13 @@ type Config struct {
 	Scan      ScanConfig      `toml:"scan"`
 	Output    OutputConfig    `toml:"output"`
 	Execution ExecutionConfig `toml:"execution"`
+	Vulns     VulnConfig      `toml:"vulnerabilities"`
+}
+
+// VulnConfig controls known-vulnerability lookups for lockfile dependencies.
+// Enabled by default; lookups send package names and versions to OSV.dev.
+type VulnConfig struct {
+	Enabled bool `toml:"enabled"`
 }
 
 // ExecutionConfig controls generated-code execution. Disabled by default.
@@ -71,6 +78,7 @@ func Default() *Config {
 			Color:  true,
 		},
 		Execution: ExecutionConfig{Enabled: false},
+		Vulns:     VulnConfig{Enabled: true},
 	}
 }
 
