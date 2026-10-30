@@ -1,0 +1,19 @@
+# pre-commit hook definitions for projects that use Sift.
+# https://pre-commit.com/#creating-new-hooks
+- id: sift
+  name: sift security scan
+  description: Block commits that add findings at or above high severity.
+  entry: sift
+  args: [scan, ., --fail-on, high, --min-confidence, medium, --quiet]
+  language: golang
+  pass_filenames: false
+  require_serial: true
+
+- id: sift-system
+  name: sift security scan (installed binary)
+  description: Same as "sift", using the sift binary already on PATH.
+  entry: sift
+  args: [scan, ., --fail-on, high, --min-confidence, medium, --quiet]
+  language: system
+  pass_filenames: false
+  require_serial: true

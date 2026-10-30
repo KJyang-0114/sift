@@ -9,6 +9,11 @@
 - Merge aliased advisories into one finding and recommend the fix for the installed release line.
 - Report OSV outages as partial scans; disable lookups with `[vulnerabilities] enabled = false` or `SIFT_VULNERABILITIES=false`.
 
+### Agent integration
+
+- Add a Claude Code Stop hook that hands new high-risk findings back to the agent in LLM format, with loop protection.
+- Add pre-commit hook definitions (`sift` builds from source, `sift-system` uses the installed binary).
+
 ### Finding gate
 
 - Add `--fail-on` and `--min-confidence`; exit code `1` when unsuppressed findings reach the threshold, after the report is written.

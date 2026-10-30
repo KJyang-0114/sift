@@ -89,6 +89,10 @@ JSON 包含 `status: complete / partial`；SARIF 使用 `executionSuccessful`。
 registry 限流、權限與服務異常列為 diagnostics，不會當成不存在套件。
 CI 應先保存、上傳報告，再回傳掃描退出碼。完整變更見 [MIGRATION.md](MIGRATION.md)。
 
+### 接上 AI agent
+
+Claude Code Stop hook、pre-commit 與其他 agent 的設定見 [docs/agents.md](docs/agents.md)：agent 改完程式後自動掃描，有新的高風險問題就把報告交回 agent 修正。
+
 ### Gate 與 baseline
 
 ```bash
