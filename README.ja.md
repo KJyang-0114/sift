@@ -147,7 +147,7 @@ concurrency = 4
 enabled = true           # パッケージ名とバージョンを OSV.dev に送信する
 ```
 
-環境変数：`SIFT_LLM_PROVIDER`、`SIFT_LLM_API_KEY`、`SIFT_LLM_MODEL`。オフライン環境では `SIFT_VULNERABILITIES=false`。
+環境変数：`SIFT_LLM_PROVIDER`、`SIFT_LLM_API_KEY`、`SIFT_LLM_MODEL`。`SIFT_VULNERABILITIES=false` で OSV への照会を無効化できます。パッケージ存在確認は引き続き npm・PyPI・Go proxy・crates.io に接続し、接続できない場合はスキャンが partial（exit 3）になります。
 
 ## 制限事項
 

@@ -147,7 +147,7 @@ concurrency = 4
 enabled = true           # sends package names and versions to OSV.dev
 ```
 
-Environment variables: `SIFT_LLM_PROVIDER`, `SIFT_LLM_API_KEY`, `SIFT_LLM_MODEL`, `SIFT_VULNERABILITIES=false` for air-gapped runs.
+Environment variables: `SIFT_LLM_PROVIDER`, `SIFT_LLM_API_KEY`, `SIFT_LLM_MODEL`, and `SIFT_VULNERABILITIES=false` to skip OSV lookups. Package verification still contacts npm, PyPI, the Go proxy or crates.io; without network access the scan is partial (exit 3).
 
 ## Limits
 

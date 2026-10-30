@@ -147,7 +147,7 @@ concurrency = 4
 enabled = true           # 會把套件名稱與版本送到 OSV.dev
 ```
 
-環境變數：`SIFT_LLM_PROVIDER`、`SIFT_LLM_API_KEY`、`SIFT_LLM_MODEL`；離線環境設 `SIFT_VULNERABILITIES=false`。
+環境變數：`SIFT_LLM_PROVIDER`、`SIFT_LLM_API_KEY`、`SIFT_LLM_MODEL`；`SIFT_VULNERABILITIES=false` 可關閉 OSV 查詢。套件存在性檢查仍會連線 npm、PyPI、Go proxy 或 crates.io，無法連線時掃描為 partial（exit 3）。
 
 ## 限制
 
