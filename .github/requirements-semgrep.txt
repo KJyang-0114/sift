@@ -1,0 +1,2 @@
+# Semgrep version used by CI; updated by Dependabot.
+semgrep==1.183.0
