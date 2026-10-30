@@ -122,9 +122,19 @@ jobs:
         env:
           SIFT_INSTALL_DIR: ${{ runner.temp }}\bin
         run: |
-          ./install.ps1
+          # Run the way users do (irm | iex): twice, so the second run exercises the upgrade path.
+          $ErrorActionPreference = "Continue"
+          $ProgressPreference = "Continue"
+          foreach ($run in 1..2) {
+            Get-Content ./install.ps1 -Raw | Invoke-Expression
+          }
+          if ($ErrorActionPreference -ne "Continue" -or $ProgressPreference -ne "Continue") {
+            throw "installer leaked preferences into the caller's session"
+          }
           $version = & (Join-Path $env:SIFT_INSTALL_DIR "sift.exe") --version
           if ($version -notmatch "1\.5\.0") { throw "unexpected version: $version" }
+          $leftovers = Get-ChildItem $env:SIFT_INSTALL_DIR -Force -Filter ".sift.exe.*"
+          if ($leftovers) { throw "staging files left behind: $($leftovers.Name -join ', ')" }
 
   build:
     name: build (${{ matrix.os }})

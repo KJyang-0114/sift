@@ -12,7 +12,7 @@ docker run --rm -v "$PWD:/src" ghcr.io/kjyang-0114/sift:latest \
 - Image 內含 `sift`、固定版本的 Semgrep 與 `git`（`--diff` 需要）。
 - 以非 root 使用者（uid 10001）執行；報告寫到掛載的 `/src`，主機需允許該使用者寫入，或改寫到 `/tmp` 再複製出來。
 - 標籤：`latest`、`vX.Y.Z`。
-- 預設會連線 OSV.dev 查詢已知漏洞；離線環境加 `-e SIFT_VULNERABILITIES=false`。
+- 預設會連線 OSV.dev 查詢已知漏洞；`-e SIFT_VULNERABILITIES=false` 只關閉這項查詢。套件存在性檢查仍需連線 npm、PyPI、Go proxy 或 crates.io，無法連線時掃描會是 partial（exit 3）。
 
 ## 退出碼
 
