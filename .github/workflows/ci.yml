@@ -3,8 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, "codex/scan-result-reliability"]
-    tags: ["v*"]
+    branches: [main]
 
 permissions:
   contents: read
@@ -49,6 +48,16 @@ jobs:
 
       - name: Build
         run: go build ./cmd/sift/
+
+      - name: Check GoReleaser config
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: check
+
+      - name: Lint installer
+        run: shellcheck install.sh
 
   build:
     name: build (${{ matrix.os }})
