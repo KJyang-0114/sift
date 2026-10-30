@@ -63,7 +63,7 @@ baseline は行番号ではなく、ルール・パス・正規化したコー�
 
 ## CI で使う
 
-**GitHub Actions**：SARIF を Code Scanning にアップロードしてから、ゲートの結果を返します。
+**GitHub Actions**：1 ステップで Semgrep と Sift をインストールし、SARIF を Code Scanning にアップロードして、新しく入った高リスクの問題があるときだけ失敗させます（信頼度の低いヒューリスティックは報告のみ）。
 
 ```yaml
 name: sift
@@ -76,26 +76,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.13"
-      - run: pip install semgrep
-      - run: curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh | SIFT_INSTALL_DIR="$HOME/.local/bin" bash
-      - name: Run Sift
-        id: scan
-        run: |
-          status=0
-          sift scan . --format sarif --output sift.sarif --baseline sift-baseline.json --fail-on high || status=$?
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-      - uses: github/codeql-action/upload-sarif@v4
-        if: ${{ !cancelled() && hashFiles('sift.sarif') != '' }}
-        with:
-          sarif_file: sift.sarif
-      - if: ${{ !cancelled() }}
-        run: exit ${{ steps.scan.outputs.exit_code }}
+      - uses: KJyang-0114/sift@v1
 ```
 
-**GitLab・Jenkins などその他の CI**：[docs/ci](docs/ci/README.md) を参照してください。
+`fail-on`・`baseline`・`upload-sarif` などの入力と、**GitLab・Jenkins などその他の CI** は [docs/ci](docs/ci/README.md) を参照してください。
 
 ## エージェントに直させる
 

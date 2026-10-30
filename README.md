@@ -63,7 +63,7 @@ Baseline entries match on rule, path and normalized code, not line numbers. Add 
 
 ## Use it in CI
 
-**GitHub Actions** — upload SARIF to Code Scanning, then return the gate result:
+**GitHub Actions** — one step installs Semgrep and Sift, uploads SARIF to Code Scanning and fails only on new high-risk findings (low-confidence heuristics are reported, not blocking):
 
 ```yaml
 name: sift
@@ -76,26 +76,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.13"
-      - run: pip install semgrep
-      - run: curl -fsSL https://raw.githubusercontent.com/KJyang-0114/sift/main/install.sh | SIFT_INSTALL_DIR="$HOME/.local/bin" bash
-      - name: Run Sift
-        id: scan
-        run: |
-          status=0
-          sift scan . --format sarif --output sift.sarif --baseline sift-baseline.json --fail-on high || status=$?
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-      - uses: github/codeql-action/upload-sarif@v4
-        if: ${{ !cancelled() && hashFiles('sift.sarif') != '' }}
-        with:
-          sarif_file: sift.sarif
-      - if: ${{ !cancelled() }}
-        run: exit ${{ steps.scan.outputs.exit_code }}
+      - uses: KJyang-0114/sift@v1
 ```
 
-**GitLab, Jenkins and others** — see [docs/ci](docs/ci/README.md).
+Inputs such as `fail-on`, `baseline` and `upload-sarif`, plus **GitLab, Jenkins and other CI**, are covered in [docs/ci](docs/ci/README.md).
 
 ## Let your agent fix it
 
