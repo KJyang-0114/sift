@@ -32,8 +32,8 @@ New `scan` flags; defaults keep previous behavior (findings advisory, exit 0).
 |---|---|
 | `--fail-on SEVERITY` | Exit `1` when an unsuppressed finding is at or above `critical`, `high`, `medium`, `low` or `info`. Default `none`. |
 | `--min-confidence LEVEL` | Only findings at or above `high`, `medium` or `low` count toward the gate. Default `low`. |
-| `--baseline FILE` | Mark findings listed in FILE as suppressed. Missing or invalid files exit `2`. |
-| `--write-baseline FILE` | Atomically write every current finding to FILE, then apply it. Reasons from `--baseline` are kept. |
+| `--baseline FILE` | Mark findings listed in FILE as suppressed. FILE must be inside the working directory; missing, invalid or escaping paths (including symlinks) exit `2`. |
+| `--write-baseline FILE` | Atomically write every current finding to FILE (inside the working directory), then apply it. Reasons from `--baseline` are kept. |
 | `--output FILE`, `-o` | Write the `--format` report to FILE atomically and show the terminal report on stdout (unless `--quiet`). Write failures exit `4`. |
 
 Exit precedence: report or baseline write failure (`4`) > gate (`1`) > partial scan (`3`).

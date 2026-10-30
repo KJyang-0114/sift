@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // relativePath interprets relative names against baseDir, never the process cwd.
@@ -90,4 +92,37 @@ func WriteFile(baseDir, name string, data []byte, perm os.FileMode) error {
 	}
 	defer root.Close()
 	return root.WriteFile(rel, data, perm)
+}
+
+// WriteFileAtomic replaces a file inside baseDir through a temporary sibling, so
+// readers never observe partial content and links cannot escape baseDir.
+func WriteFileAtomic(baseDir, name string, data []byte, perm os.FileMode) error {
+	base, rel, err := relativePath(baseDir, name)
+	if err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(base)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	temp := filepath.Join(filepath.Dir(rel), "."+filepath.Base(rel)+".tmp-"+strconv.FormatInt(time.Now().UnixNano(), 36))
+	file, err := root.OpenFile(temp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+	if err != nil {
+		return err
+	}
+	if _, err := file.Write(data); err != nil {
+		file.Close()
+		root.Remove(temp)
+		return err
+	}
+	if err := file.Close(); err != nil {
+		root.Remove(temp)
+		return err
+	}
+	if err := root.Rename(temp, rel); err != nil {
+		root.Remove(temp)
+		return err
+	}
+	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/KJyang-0114/sift/internal/config"
 	"github.com/KJyang-0114/sift/internal/core"
@@ -75,9 +76,14 @@ current findings. Reports are always written before the exit code is returned.`,
 			if err != nil {
 				return usageError(err)
 			}
+			// Baselines are project policy: reads and writes stay inside the working directory.
+			projectDir, err := os.Getwd()
+			if err != nil {
+				return &core.OperationError{Kind: core.DiagnosticInternal, Err: fmt.Errorf("resolve working directory: %w", err)}
+			}
 			var baseline *policy.Baseline
 			if baselinePath != "" {
-				loaded, err := policy.LoadBaseline(baselinePath)
+				loaded, err := policy.LoadBaseline(projectDir, baselinePath)
 				if err != nil {
 					return usageError(err)
 				}
@@ -98,7 +104,7 @@ current findings. Reports are always written before the exit code is returned.`,
 				if baseline != nil {
 					written = written.KeepReasons(*baseline)
 				}
-				if err := policy.WriteBaseline(writeBaselinePath, written); err != nil {
+				if err := policy.WriteBaseline(projectDir, writeBaselinePath, written); err != nil {
 					baselineErr = &core.OperationError{Kind: core.DiagnosticInternal, Err: fmt.Errorf("write baseline: %w", err)}
 				} else {
 					fmt.Fprintf(stderr, "baseline: wrote %d finding(s) to %s\n", len(written.Findings), writeBaselinePath)

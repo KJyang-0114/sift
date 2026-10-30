@@ -59,13 +59,14 @@ func TestBaselineKeysDistinguishRepeatedLinesByOrder(t *testing.T) {
 func TestBaselineRoundTripAppliesSuppressionWithoutRemovingFindings(t *testing.T) {
 	accepted := finding(t, "sql", "app.py", 10, "db.execute(q + x)", core.SeverityHigh, core.ConfidenceHigh)
 	fixed := finding(t, "xss", "web.js", 3, "el.innerHTML = v", core.SeverityMedium, core.ConfidenceHigh)
-	path := filepath.Join(t.TempDir(), "baseline.json")
+	dir := t.TempDir()
+	path := "baseline.json"
 	baseline := NewBaseline([]core.Finding{accepted, fixed})
 	baseline.Findings[0].Reason = "legacy admin tool, tracked in #12"
-	if err := WriteBaseline(path, baseline); err != nil {
+	if err := WriteBaseline(dir, path, baseline); err != nil {
 		t.Fatal(err)
 	}
-	loaded, err := LoadBaseline(path)
+	loaded, err := LoadBaseline(dir, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,16 +113,50 @@ func TestLoadBaselineRejectsInvalidFiles(t *testing.T) {
 		"not-json": `version: 1`,
 	}
 	for name, content := range cases {
-		path := filepath.Join(dir, name+".json")
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, name+".json"), []byte(content), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := LoadBaseline(path); err == nil {
+		if _, err := LoadBaseline(dir, name+".json"); err == nil {
 			t.Errorf("%s accepted", name)
 		}
 	}
-	if _, err := LoadBaseline(filepath.Join(dir, "missing.json")); err == nil {
+	if _, err := LoadBaseline(dir, "missing.json"); err == nil {
 		t.Error("missing file accepted")
+	}
+}
+
+func TestBaselineFilesMustStayInsideProject(t *testing.T) {
+	outside := t.TempDir()
+	project := t.TempDir()
+	secret := filepath.Join(outside, "secret.json")
+	valid := `{"version": 1, "findings": []}`
+	if err := os.WriteFile(secret, []byte(valid), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(secret, filepath.Join(project, "linked.json")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	relativeEscape, err := filepath.Rel(project, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{relativeEscape, secret, "linked.json"} {
+		if _, err := LoadBaseline(project, name); err == nil {
+			t.Errorf("LoadBaseline(%q) read a file outside the project", name)
+		}
+	}
+	if err := WriteBaseline(project, relativeEscape, Baseline{Version: BaselineVersion}); err == nil {
+		t.Error("WriteBaseline escaped the project")
+	}
+	// Replacing a link swaps the link itself for a regular file; the target is untouched.
+	if err := WriteBaseline(project, "linked.json", Baseline{Version: BaselineVersion}); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Lstat(filepath.Join(project, "linked.json")); err != nil || !info.Mode().IsRegular() {
+		t.Fatalf("link not replaced by a regular file: %v %v", info, err)
+	}
+	if data, _ := os.ReadFile(secret); string(data) != valid {
+		t.Fatalf("outside file modified: %s", data)
 	}
 }
 

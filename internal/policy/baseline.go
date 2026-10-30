@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/KJyang-0114/sift/internal/core"
+	"github.com/KJyang-0114/sift/internal/securepath"
 )
 
 // BaselineVersion identifies the serialized baseline format.
@@ -76,11 +77,12 @@ func (b Baseline) KeepReasons(previous Baseline) Baseline {
 	return b
 }
 
-// LoadBaseline reads and validates a baseline file.
-func LoadBaseline(path string) (Baseline, error) {
-	data, err := os.ReadFile(path)
+// LoadBaseline reads and validates a baseline file inside projectDir. The read is
+// rooted, so "../" paths and symlinks cannot reach files outside the project.
+func LoadBaseline(projectDir, path string) (Baseline, error) {
+	data, err := securepath.ReadFile(projectDir, path)
 	if err != nil {
-		return Baseline{}, fmt.Errorf("read baseline: %w", err)
+		return Baseline{}, fmt.Errorf("read baseline (must be inside %s): %w", projectDir, err)
 	}
 	var baseline Baseline
 	decoder := json.NewDecoder(strings.NewReader(string(data)))
@@ -99,8 +101,8 @@ func LoadBaseline(path string) (Baseline, error) {
 	return baseline, nil
 }
 
-// WriteBaseline atomically replaces path with the serialized baseline.
-func WriteBaseline(path string, baseline Baseline) error {
+// WriteBaseline atomically replaces path, which must be inside projectDir.
+func WriteBaseline(projectDir, path string, baseline Baseline) error {
 	if baseline.Findings == nil {
 		baseline.Findings = []BaselineEntry{}
 	}
@@ -108,7 +110,7 @@ func WriteBaseline(path string, baseline Baseline) error {
 	if err != nil {
 		return err
 	}
-	return WriteFileAtomic(path, append(data, '\n'))
+	return securepath.WriteFileAtomic(projectDir, path, append(data, '\n'), 0o644)
 }
 
 // Apply marks findings matched by the baseline as suppressed without removing

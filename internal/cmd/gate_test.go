@@ -100,7 +100,9 @@ func TestGateTakesPrecedenceOverPartialScan(t *testing.T) {
 }
 
 func TestWriteBaselineThenBaselineSuppressesOnlyAcceptedFindings(t *testing.T) {
-	baselinePath := filepath.Join(t.TempDir(), "sift-baseline.json")
+	project := t.TempDir()
+	t.Chdir(project)
+	baselinePath := "sift-baseline.json"
 	old := gateFinding(t, "sql", core.SeverityHigh, core.ConfidenceHigh)
 	stub := &scannerStub{result: core.ScanResult{AnalysisResult: core.AnalysisResult{Findings: []core.Finding{old}}}}
 
@@ -112,12 +114,12 @@ func TestWriteBaselineThenBaselineSuppressesOnlyAcceptedFindings(t *testing.T) {
 		t.Fatalf("new baseline not applied: %+v", report.Summary)
 	}
 
-	baseline, err := policy.LoadBaseline(baselinePath)
+	baseline, err := policy.LoadBaseline(project, baselinePath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	baseline.Findings[0].Reason = "accepted risk"
-	if err := policy.WriteBaseline(baselinePath, baseline); err != nil {
+	if err := policy.WriteBaseline(project, baselinePath, baseline); err != nil {
 		t.Fatal(err)
 	}
 
@@ -141,7 +143,7 @@ func TestWriteBaselineThenBaselineSuppressesOnlyAcceptedFindings(t *testing.T) {
 	if code, _, _ := runScan(t, stub, "--baseline", baselinePath, "--write-baseline", baselinePath); code != 0 {
 		t.Fatalf("refresh exit=%d", code)
 	}
-	refreshed, err := policy.LoadBaseline(baselinePath)
+	refreshed, err := policy.LoadBaseline(project, baselinePath)
 	if err != nil || len(refreshed.Findings) != 2 {
 		t.Fatalf("refreshed=%+v err=%v", refreshed, err)
 	}
@@ -190,7 +192,8 @@ func TestInvalidGateOptionsAreUsageErrors(t *testing.T) {
 	for _, args := range [][]string{
 		{"--fail-on", "severe"},
 		{"--min-confidence", "certain"},
-		{"--baseline", filepath.Join(t.TempDir(), "missing.json")},
+		{"--baseline", "missing.json"},
+		{"--baseline", filepath.Join("..", "outside.json")},
 	} {
 		if code, _, _ := runScan(t, stub, args...); code != 2 {
 			t.Errorf("%v exit=%d want 2", args, code)

@@ -100,6 +100,7 @@ sift scan . --baseline sift-baseline.json --fail-on high --min-confidence medium
 - baseline 以規則、路徑與正規化後的程式內容比對，不看行號；同檔相同內容依出現順序區分。
 - 命中的 finding 不刪除，只標為 suppressed：JSON 的 `summary.active`／`summary.suppressed`、SARIF 的 `suppressions`；終端與 LLM 格式隱藏它們。
 - 可在 baseline 每筆填 `reason`；`--baseline X --write-baseline X` 重新產生時會保留原因。
+- baseline 屬於專案政策，必須位於工作目錄內；`../` 或指向外部的 symlink 會被拒絕。
 
 ## 驗證
 
