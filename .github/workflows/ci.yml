@@ -139,6 +139,60 @@ jobs:
           $leftovers = Get-ChildItem $env:SIFT_INSTALL_DIR -Force -Filter ".sift.exe.*"
           if ($leftovers) { throw "staging files left behind: $($leftovers.Name -join ', ')" }
 
+  action:
+    name: github action
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Create a fixture with one command injection
+        run: |
+          mkdir -p action-fixture
+          printf 'import os\n\ndef run(x):\n    os.system("ls " + x)\n' > action-fixture/app.py
+
+      - name: Gate blocks the new finding
+        id: blocked
+        continue-on-error: true
+        uses: ./
+        with:
+          version: source
+          path: action-fixture
+          upload-sarif: "false"
+
+      - name: Accept the finding in a baseline
+        env:
+          SIFT_LLM_PROVIDER: offline
+        run: sift scan action-fixture --write-baseline sift-baseline.json --quiet
+
+      - name: Gate passes with the baseline
+        id: accepted
+        uses: ./
+        with:
+          version: source
+          path: action-fixture
+          upload-sarif: "false"
+
+      - name: Check action outputs
+        env:
+          BLOCKED_OUTCOME: ${{ steps.blocked.outcome }}
+          BLOCKED_EXIT: ${{ steps.blocked.outputs.exit-code }}
+          BLOCKED_FINDINGS: ${{ steps.blocked.outputs.findings }}
+          ACCEPTED_EXIT: ${{ steps.accepted.outputs.exit-code }}
+          ACCEPTED_FINDINGS: ${{ steps.accepted.outputs.findings }}
+          SARIF_FILE: ${{ steps.accepted.outputs.sarif-file }}
+        run: |
+          echo "blocked: outcome=$BLOCKED_OUTCOME exit=$BLOCKED_EXIT findings=$BLOCKED_FINDINGS"
+          echo "accepted: exit=$ACCEPTED_EXIT findings=$ACCEPTED_FINDINGS sarif=$SARIF_FILE"
+          test "$BLOCKED_OUTCOME" = failure
+          test "$BLOCKED_EXIT" = 1
+          test "$BLOCKED_FINDINGS" -ge 1
+          test "$ACCEPTED_EXIT" = 0
+          test "$ACCEPTED_FINDINGS" = 0
+          test -s "$SARIF_FILE"
+
   build:
     name: build (${{ matrix.os }})
     strategy:

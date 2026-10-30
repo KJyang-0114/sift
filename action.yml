@@ -1,0 +1,129 @@
+name: Sift Security Scan
+description: Scan code and dependencies for security issues and block only new high-risk findings.
+author: KJyang-0114
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  path:
+    description: Directory or file to scan, relative to the workspace.
+    default: "."
+  fail-on:
+    description: Fail when an unsuppressed finding reaches this severity (critical, high, medium, low, info, none).
+    default: high
+  min-confidence:
+    description: Minimum confidence counted by fail-on (high, medium, low).
+    default: medium
+  baseline:
+    description: Baseline file of accepted findings, relative to the workspace. Used only when it exists.
+    default: sift-baseline.json
+  upload-sarif:
+    description: Upload the SARIF report to GitHub Code Scanning (needs security-events write permission).
+    default: "true"
+  category:
+    description: Code Scanning category for the uploaded SARIF.
+    default: sift
+  vulnerabilities:
+    description: Check lockfile dependencies against OSV.dev (true or false).
+    default: "true"
+  version:
+    description: Sift release to install (for example v1.6.0), "latest", or "source" to build this action's checkout.
+    default: latest
+  args:
+    description: Extra arguments appended to "sift scan".
+    default: ""
+
+outputs:
+  exit-code:
+    description: "Sift exit code: 0 pass, 1 gate failed, 2 usage error, 3 partial scan, 4 internal error."
+    value: ${{ steps.scan.outputs.exit_code }}
+  sarif-file:
+    description: Path of the SARIF report.
+    value: ${{ steps.scan.outputs.sarif_file }}
+  findings:
+    description: Number of new (unsuppressed) findings.
+    value: ${{ steps.summary.outputs.active }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.13"
+
+    - name: Install pinned Semgrep
+      shell: bash
+      run: pip install --disable-pip-version-check -q -r "$GITHUB_ACTION_PATH/.github/requirements-semgrep.txt"
+
+    - name: Set up Go
+      if: inputs.version == 'source'
+      uses: actions/setup-go@v7
+      with:
+        go-version-file: ${{ github.action_path }}/go.mod
+        cache: false
+
+    - name: Install Sift
+      shell: bash
+      env:
+        SIFT_ACTION_VERSION: ${{ inputs.version }}
+      run: |
+        bin="$RUNNER_TEMP/sift-action/bin"
+        mkdir -p "$bin"
+        if [ "$SIFT_ACTION_VERSION" = "source" ]; then
+          (cd "$GITHUB_ACTION_PATH" && go build -trimpath -o "$bin/sift" ./cmd/sift)
+        else
+          if [ "$SIFT_ACTION_VERSION" != "latest" ]; then export SIFT_VERSION="$SIFT_ACTION_VERSION"; fi
+          SIFT_INSTALL_DIR="$bin" bash "$GITHUB_ACTION_PATH/install.sh"
+        fi
+        echo "$bin" >> "$GITHUB_PATH"
+
+    - name: Run Sift once and keep its exit code
+      id: scan
+      shell: bash
+      env:
+        SIFT_LLM_PROVIDER: ${{ env.SIFT_LLM_PROVIDER || 'offline' }}
+        SIFT_VULNERABILITIES: ${{ inputs.vulnerabilities }}
+        SIFT_TARGET: ${{ inputs.path }}
+        SIFT_FAIL_ON: ${{ inputs.fail-on }}
+        SIFT_MIN_CONFIDENCE: ${{ inputs.min-confidence }}
+        SIFT_BASELINE: ${{ inputs.baseline }}
+        SIFT_EXTRA_ARGS: ${{ inputs.args }}
+      run: |
+        sarif="$RUNNER_TEMP/sift-action/sift-results.sarif"
+        set -- --format sarif --output "$sarif" --fail-on "$SIFT_FAIL_ON" --min-confidence "$SIFT_MIN_CONFIDENCE"
+        if [ -n "$SIFT_BASELINE" ] && [ -f "$SIFT_BASELINE" ]; then
+          set -- "$@" --baseline "$SIFT_BASELINE"
+        fi
+        # Extra arguments are split on whitespace, like a command line.
+        # shellcheck disable=SC2086
+        status=0
+        sift scan "$SIFT_TARGET" "$@" $SIFT_EXTRA_ARGS || status=$?
+        if [ -s "$sarif" ] && python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); assert r["version"] == "2.1.0" and len(r["runs"]) == 1' "$sarif"; then
+          echo "valid_report=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "valid_report=false" >> "$GITHUB_OUTPUT"
+          if [ "$status" -eq 0 ]; then status=4; fi
+        fi
+        echo "sarif_file=$sarif" >> "$GITHUB_OUTPUT"
+        echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+
+    - name: Summarize results
+      id: summary
+      if: steps.scan.outputs.valid_report == 'true'
+      shell: bash
+      run: python3 "$GITHUB_ACTION_PATH/scripts/sarif-summary.py" "${{ steps.scan.outputs.sarif_file }}" "${{ steps.scan.outputs.exit_code }}" "$GITHUB_OUTPUT" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload SARIF to Code Scanning
+      if: steps.scan.outputs.valid_report == 'true' && inputs.upload-sarif == 'true'
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif_file }}
+        category: ${{ inputs.category }}
+
+    - name: Return Sift exit code
+      shell: bash
+      env:
+        SIFT_EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
+      run: exit "$SIFT_EXIT_CODE"
