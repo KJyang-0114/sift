@@ -84,7 +84,7 @@ go build ./cmd/sift
 
 ## 維護與路線圖
 
-目前的強化進度、已確認的安全與隱私原則，以及下一個 PR 的驗收條件，請參閱 [Maintainer Handoff](docs/MAINTAINER_HANDOFF.md)。
+版本變更見 [CHANGELOG.md](CHANGELOG.md)，審查與合併流程見 [docs/REVIEW-WORKFLOW.zh-Hant.md](docs/REVIEW-WORKFLOW.zh-Hant.md)。Sift 本身的安全漏洞請依 [SECURITY.md](SECURITY.md) 私下回報，勿開公開 issue。
 
 ## 限制
 
