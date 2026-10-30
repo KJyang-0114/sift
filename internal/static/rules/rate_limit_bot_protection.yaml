@@ -1,15 +1,30 @@
 rules:
   - id: sift.rate-limit-missing
     message: |
-      [Public-Facing Deployment] No rate limiting mechanism detected.
-      Add express-rate-limit / django-ratelimit when deploying to the public internet.
+      [Public-Facing Deployment] This Express app registers no rate limiter in this file.
+      Add express-rate-limit (or an equivalent limiter) before deploying to the public internet.
     severity: INFO
     languages:
-      - python
       - javascript
       - typescript
-      - go
+    # Semgrep sees one file at a time: only apps created and configured in the same file are checked.
     patterns:
-      - pattern-regex: (rateLimit|RateLimiter|express-rate-limit|django-ratelimit)
+      - pattern: $APP = express()
+      - pattern-not-inside: |
+          $APP = express();
+          ...
+          $APP.use(..., rateLimit(...), ...);
+      - pattern-not-inside: |
+          $LIMITER = rateLimit(...);
+          ...
+          $APP = express();
+          ...
+          $APP.use(..., $LIMITER, ...);
+      - pattern-not-inside: |
+          $APP = express();
+          ...
+          $LIMITER = rateLimit(...);
+          ...
+          $APP.use(..., $LIMITER, ...);
     metadata:
       category: deployment-security

@@ -4,6 +4,9 @@
 
 ### Rules
 
+- Fix rules that reported correct code: `rate-limit-missing` now flags Express apps without a limiter (it flagged apps that had one), `session-cookie-no-httponly` skips cookies with `httpOnly: true`, and `error-unhandled-rejection` flags handlers that discard the error instead of every `process.on`.
+- Narrow `config-env-file` to `.env` file names (not `process.env`), `error-stack-trace-leak` to error details sent to clients (it now also catches Go `http.Error(w, err.Error(), …)`), `frontend-localStorage` to credential-like keys or values, and `path-traversal-file-op` to paths not anchored to a literal or the program's own location.
+- Add `session-cookie-no-httponly-python` and `session-cookie-no-httponly-go`. Every changed rule has `semgrep --test` cases.
 - `sift.ssrf-http-request` no longer reports every `.get()` call (such as Python `dict.get` or JavaScript `Map.get`); the generic pattern now requires an HTTP-client receiver and a non-literal URL. Rule test cases run with `semgrep --test` in CI.
 
 ### Known vulnerabilities

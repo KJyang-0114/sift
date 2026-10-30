@@ -1,5 +1,15 @@
 # Migration Guide
 
+## Rule accuracy fixes (unreleased)
+
+Seven rules changed what they match; see CHANGELOG for details. Findings that
+were false positives disappear; baselines keep working because rule IDs are
+unchanged, and entries for findings that no longer appear are reported as stale
+with `--verbose`. Two rule IDs are new:
+`sift.session-cookie-no-httponly-python` and `sift.session-cookie-no-httponly-go`
+(the original ID now covers JavaScript and TypeScript only). `sift.rate-limit-missing`
+now covers only JavaScript and TypeScript Express apps.
+
 ## Dependency vulnerability lookups (unreleased)
 
 A new `vulnerability-db` analyzer reads exact versions from `package-lock.json`,

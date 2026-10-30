@@ -11,7 +11,8 @@ rules:
       - java
       - php
     patterns:
-      - pattern-regex: ((?<![\w.])open\(|os\.path\.join\(|fs\.readFile\(|os\.ReadFile\()
+      # Skip paths anchored to a string literal or to the program's own location.
+      - pattern-regex: ((?<![\w.])open\(|os\.path\.join\(|fs\.readFile(?:Sync)?\(|os\.ReadFile\()(?!\s*(?:["'`]|__file__|__dirname|os\.path\.dirname\(\s*__file__|Path\(\s*__file__|path\.join\(\s*__dirname))
     metadata:
       category: security
       cwe: "CWE-22"

@@ -22,7 +22,7 @@
 
 ## 為什麼用 Sift
 
-- **抓出 AI 常犯的錯。** 內建 36 條 Semgrep 規則：injection、XSS、SSRF、不安全的反序列化、寫死的密鑰、JWT 與 session 設定錯誤。
+- **抓出 AI 常犯的錯。** 內建 38 條 Semgrep 規則：injection、XSS、SSRF、不安全的反序列化、寫死的密鑰、JWT 與 session 設定錯誤。
 - **認得最新的 CVE。** 每次掃描都用 lockfile 的精確版本查詢 [OSV.dev](https://osv.dev)；列入 [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)（已遭實際利用）的 CVE 直接升為 critical，也會標出惡意套件與 AI 幻想出來的套件。
 - **第一天就能導入。** baseline 接受現有問題，`--fail-on high` 只擋這次變更新增的。程式碼上下移動也不會讓舊問題重新出現。
 - **在你習慣的地方運作。** 終端、GitHub Code Scanning（SARIF）、透過 Docker image 接任何 CI，以及 Claude Code、pre-commit hook。
