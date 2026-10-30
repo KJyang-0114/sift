@@ -19,7 +19,13 @@ rules:
           - pattern: http.Get($URL)
           - pattern: fetch($URL)
           - pattern: urllib.request.urlopen($URL)
-          - pattern: $HTTP.get($URL)
+          # Only HTTP clients: a bare $X.get($Y) also matches dict and Map lookups.
+          - patterns:
+              - pattern: $HTTP.get($URL)
+              - metavariable-regex:
+                  metavariable: $HTTP
+                  regex: (?i)^(httpx|session|sess|client|http_client|http|https|axios|got|ky|superagent|urllib3|aiohttp)$
+              - pattern-not: $HTTP.get("...")
     metadata:
       category: security
       cwe: "CWE-918"

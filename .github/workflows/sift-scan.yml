@@ -27,76 +27,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Go
-        uses: actions/setup-go@v7
+      - name: Scan this repository with the action from this commit
+        uses: ./
         with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.13"
-          cache: pip
-          cache-dependency-path: .github/requirements-semgrep.txt
-
-      - name: Install pinned Semgrep
-        run: pip install -r .github/requirements-semgrep.txt
-
-      - name: Build Sift
-        run: go build -o "$RUNNER_TEMP/sift" ./cmd/sift/
-
-      - name: Run Sift once and retain its exit code
-        id: scan
-        env:
-          SIFT_LLM_PROVIDER: offline
-        run: |
-          scan_status=0
-          "$RUNNER_TEMP/sift" scan . --format sarif > sift-results.sarif || scan_status=$?
-          if python3 -c 'import json; r=json.load(open("sift-results.sarif")); assert r["version"] == "2.1.0" and len(r["runs"]) == 1'; then
-            echo "valid_report=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "valid_report=false" >> "$GITHUB_OUTPUT"
-            if [ "$scan_status" -eq 0 ]; then scan_status=4; fi
-          fi
-          echo "exit_code=$scan_status" >> "$GITHUB_OUTPUT"
-
-      - name: Summarize results
-        if: ${{ !cancelled() && steps.scan.outputs.valid_report == 'true' }}
-        env:
-          SIFT_SCAN_EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
-        run: |
-          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
-          import collections, json, os
-          run = json.load(open("sift-results.sarif"))["runs"][0]
-          results = run.get("results", [])
-          levels = collections.Counter(r.get("level", "warning") for r in results)
-          rules = collections.Counter(r.get("ruleId", "?") for r in results)
-          invocation = (run.get("invocations") or [{}])[0]
-          complete = invocation.get("executionSuccessful", True)
-          print("## Sift scan")
-          print(f"- Status: {'complete' if complete else 'partial'} (exit {os.environ['SIFT_SCAN_EXIT_CODE']})")
-          print(f"- Findings: {len(results)} " + ", ".join(f"{k}={v}" for k, v in sorted(levels.items())))
-          if rules:
-              print("\n| Rule | Count |\n|---|---|")
-              for rule, count in rules.most_common(10):
-                  print(f"| `{rule}` | {count} |")
-          notes = invocation.get("toolExecutionNotifications", [])
-          if notes:
-              print("\n### Diagnostics")
-              for note in notes[:10]:
-                  print(f"- {note.get('level', 'note')}: {note.get('message', {}).get('text', '')}")
-          PY
-
-      - name: Upload SARIF to GitHub
-        if: ${{ !cancelled() && steps.scan.outputs.valid_report == 'true' }}
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: sift-results.sarif
+          version: source
+          fail-on: none
           category: sift
-
-      - name: Return Sift scan status
-        if: ${{ !cancelled() && steps.scan.outputs.exit_code != '' }}
-        env:
-          SIFT_SCAN_EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
-        run: exit "$SIFT_SCAN_EXIT_CODE"

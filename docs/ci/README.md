@@ -2,6 +2,38 @@
 
 Sift 是單一 binary，輸出 JSON／SARIF，因此不綁定特定平台。最簡單的方式是使用內含鎖版 Semgrep 的 Docker image。
 
+## GitHub Actions
+
+```yaml
+name: sift
+on: [pull_request]
+permissions:
+  contents: read
+  security-events: write
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: KJyang-0114/sift@v1
+```
+
+Action 會安裝鎖版的 Semgrep 與 Sift、執行一次掃描、上傳 SARIF 到 Code Scanning、在 Actions 頁面寫入摘要，最後才回傳 gate 結果。支援 Linux 與 macOS runner。
+
+| Input | 預設 | 說明 |
+|---|---|---|
+| `path` | `.` | 掃描目標 |
+| `fail-on` | `high` | 達到此嚴重度的新問題會讓 job 失敗；`none` 只報告 |
+| `min-confidence` | `medium` | 計入 gate 的最低信心度 |
+| `baseline` | `sift-baseline.json` | 檔案存在時才使用 |
+| `upload-sarif` | `true` | 上傳到 Code Scanning（需要 `security-events: write`） |
+| `category` | `sift` | Code Scanning 分類 |
+| `vulnerabilities` | `true` | 是否查詢 OSV.dev |
+| `version` | `latest` | 例如 `v1.6.0`；`source` 會從 Action 的原始碼建置 |
+| `args` | | 附加在 `sift scan` 後的參數 |
+
+Outputs：`exit-code`、`sarif-file`、`findings`（新問題數）。要啟用 LLM 分析，在 job 設定 `SIFT_LLM_PROVIDER` 與 `SIFT_LLM_API_KEY`（用 secrets）。
+
 ## Docker（任何支援容器的 CI）
 
 ```bash
@@ -30,7 +62,7 @@ docker run --rm -v "$PWD:/src" ghcr.io/kjyang-0114/sift:latest \
 
 | 平台 | 範本 |
 |---|---|
-| GitHub Actions | 參考 [`.github/workflows/sift-scan.yml`](../../.github/workflows/sift-scan.yml)（上傳 SARIF 到 Code Scanning） |
+| GitHub Actions | `uses: KJyang-0114/sift@v1`（見上方） |
 | GitLab CI | [`gitlab-ci.yml`](gitlab-ci.yml) |
 | 其他（Jenkins、CircleCI、Buildkite、各種 forge 的 CI） | 使用上方的 `docker run` 指令 |
 

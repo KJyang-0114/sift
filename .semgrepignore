@@ -1,0 +1,19 @@
+# A .semgrepignore replaces Semgrep's built-in defaults, so they are repeated here.
+node_modules/
+build/
+dist/
+vendor/
+.env/
+.venv/
+.tox/
+*.min.js
+.npm/
+.yarn/
+test/
+tests/
+*_test.go
+.semgrep
+.semgrep_logs/
+
+# Rule test fixtures intentionally contain vulnerable code for `semgrep --test`.
+internal/static/testdata/rules/
