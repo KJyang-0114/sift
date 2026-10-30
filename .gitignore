@@ -19,3 +19,8 @@ Thumbs.db
 .playwright-mcp/
 repo-snapshot.md
 sift-github-repo.png
+
+# Internal planning notes (local only)
+/planning/
+/docs/superpowers/
+/docs/MAINTAINER_HANDOFF.md
