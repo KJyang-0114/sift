@@ -50,8 +50,10 @@ sboms:
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
+# Release notes come from CHANGELOG.md via --release-notes (see release.yml).
+# Do not set "disable: true": GoReleaser then drops --release-notes as well.
 changelog:
-  disable: true
+  sort: asc
 
 release:
   github:
