@@ -1,6 +1,6 @@
 # Migration Guide
 
-## Severity and confidence calibration (unreleased)
+## v1.6.0: Severity and confidence calibration
 
 Each built-in rule now declares its impact (`severity: CRITICAL|HIGH|MEDIUM|LOW`)
 and how reliably a match is a real issue (`metadata.confidence: HIGH|MEDIUM|LOW`).
@@ -20,7 +20,7 @@ global map (`ERROR` critical, `WARNING` high, `INFO` medium).
 Severity changes alter which findings `--fail-on` blocks; finding IDs and
 baseline keys do not change.
 
-## Rule accuracy fixes (unreleased)
+## v1.6.0: Rule accuracy fixes
 
 Seven rules changed what they match; see CHANGELOG for details. Findings that
 were false positives disappear; baselines keep working because rule IDs are
@@ -30,7 +30,7 @@ with `--verbose`. Two rule IDs are new:
 (the original ID now covers JavaScript and TypeScript only). `sift.rate-limit-missing`
 now covers only JavaScript and TypeScript Express apps.
 
-## Dependency vulnerability lookups (unreleased)
+## v1.6.0: Dependency vulnerability lookups
 
 A new `vulnerability-db` analyzer reads exact versions from `package-lock.json`,
 `npm-shrinkwrap.json`, `poetry.lock`, `uv.lock`, `Pipfile.lock`, pinned
@@ -56,7 +56,7 @@ previously rejected the unknown `[vulnerabilities]` table now accept it.
 
 Rollback: set `SIFT_VULNERABILITIES=false`; no stored data changes.
 
-## Finding gate and baselines (unreleased)
+## v1.6.0: Finding gate and baselines
 
 New `scan` flags; defaults keep previous behavior (findings advisory, exit 0).
 
@@ -83,7 +83,7 @@ Semgrep rule IDs no longer include the random temporary rules directory
 once; GitHub Code Scanning alerts created with the old IDs will close and reopen
 under stable IDs.
 
-## Configuration validation follow-up (unreleased)
+## v1.5.0: Configuration validation follow-up
 
 Both `scan` and `fix` reject invalid timeout, concurrency, sandbox, output format,
 and LLM provider settings before scanning, with exit code 2. Explicit configuration
@@ -110,7 +110,7 @@ Provider `offline` disables LLM calls; package registry lookups still use networ
 Ollama semantic analysis can run without an API key. SHA-256 cache remains a
 component, not a complete incremental analysis engine.
 
-## Scan reliability follow-up (unreleased)
+## v1.5.0: Scan reliability follow-up
 
 `sift scan` now preserves partial findings and reports operational failures with
 distinct exit codes. Existing automation that assumed every completed process

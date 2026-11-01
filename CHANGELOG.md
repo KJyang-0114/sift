@@ -1,6 +1,20 @@
 # Changelog
 
-## Unreleased
+## v1.6.0 — 2026-10-30
+
+Sift can now gate pull requests: it checks dependencies against today's CVEs,
+accepts existing findings through a baseline, blocks only new high-risk
+issues, and runs as a GitHub Action, a Docker image or a coding-agent hook.
+
+### Upgrading
+
+- Building from source needs Go 1.26 or later.
+- Dependency lookups to OSV.dev are on by default; set `SIFT_VULNERABILITIES=false` to skip them.
+- Rule severities changed: each rule declares its own level, so `--fail-on` blocks a different set of findings than the old global mapping. Heuristic rules report with low confidence and do not block at the default `--min-confidence medium`.
+- `sift.session-cookie-no-httponly` now covers JavaScript and TypeScript only; Python and Go use new rule IDs.
+- Semgrep rule IDs no longer include a random temporary directory, so GitHub Code Scanning alerts from v1.5.0 close once and reopen under stable IDs.
+
+See [MIGRATION.md](MIGRATION.md) for details.
 
 ### Rules
 
@@ -35,6 +49,13 @@
 - Publish a multi-arch Docker image (`ghcr.io/kjyang-0114/sift`) with a pinned Semgrep and git on each release.
 - Add `install.ps1` for Windows with checksum verification, `SIFT_VERSION` and `SIFT_INSTALL_DIR`.
 - Add GitLab CI and generic CI templates under `docs/ci/`.
+- Publish releases from tags with GoReleaser, SBOMs and build provenance; `install.sh` verifies checksums, fails instead of falling back to an old version, and installs without sudo when needed.
+
+### Security and dependencies
+
+- Read dependency manifests only as regular files inside the scan root, like the lockfile scanner.
+- Keep `--baseline` and `--write-baseline` files inside the working directory.
+- Update `golang.org/x/sys` (CVE-2026-39824) and other Go modules; require Go 1.26.
 
 ## v1.5.0 — 2026-09-09
 
