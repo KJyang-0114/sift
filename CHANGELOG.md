@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.6.0 — 2026-10-30
+## v1.6.0 — 2026-11-01
 
 Sift can now gate pull requests: it checks dependencies against today's CVEs,
 accepts existing findings through a baseline, blocks only new high-risk

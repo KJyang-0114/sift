@@ -71,6 +71,17 @@ jobs:
           git tag -f "$major" "$GITHUB_SHA"
           git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/$major"
 
+      - name: Check that the release has notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          length=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq '.body | length')
+          if [ "$length" -lt 20 ]; then
+            echo "::error::Release $TAG was published without notes; check .goreleaser.yaml changelog settings."
+            exit 1
+          fi
+
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4
         with:
