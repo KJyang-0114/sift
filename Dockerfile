@@ -13,7 +13,7 @@ RUN CGO_ENABLED=0 go build -trimpath \
       -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}" \
       -o /out/sift ./cmd/sift
 
-FROM python:3.13-slim
+FROM python:3.15-slim
 COPY .github/requirements-semgrep.txt /tmp/requirements-semgrep.txt
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates \
